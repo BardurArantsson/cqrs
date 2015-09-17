@@ -1,5 +1,5 @@
 #!/bin/bash -xe
-D=$(dirname $0)
+D="$(dirname $0)"
 
 # Make sure we're running in the project's root directory
 cd "${D}"

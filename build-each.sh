@@ -1,5 +1,5 @@
 #!/bin/bash -xe
-D=$(dirname $0)
+D="$(dirname $0)"
 
 # Helper to initialize and perform a build in $CWD
 build() {

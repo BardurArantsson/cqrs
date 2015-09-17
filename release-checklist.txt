@@ -1,0 +1,9 @@
+- Bump cabal versions if necessary
+- Eliminate unused dependencies in .cabal files
+- Eliminate unused extension flags in LANGUAGE pragmas
+- Clean up FIXMEs in code
+- Clean up all warnings
+- Run all tests
+- cqrs-example:
+  - Remove usage of "console"
+  - Lint

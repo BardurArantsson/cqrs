@@ -102,10 +102,10 @@ writeChanges aggregateId aggregate = CommandT $ do
     liftIO $ publishEvents (aggregateId, versionedEvents)
     -- Write out the snapshot (if applicable).
     forM_ (settingsSnapshotFrequency $ repositorySettings repository) $ \snapshotFrequency -> do
-      forM_ (snapshotForAggregate snapshotFrequency aggregate) $ \snapshot -> do
+      forM_ (snapshotForAggregate snapshotFrequency) $ \snapshot -> do
         liftIO $ ssWriteSnapshot snapshotStore aggregateId snapshot
   where
-    snapshotForAggregate maxDelta aggregate = join $ (flip fmap) (A.aggregateSnapshot aggregate) $ \(v, a) ->
+    snapshotForAggregate maxDelta = join $ (flip fmap) (A.aggregateSnapshot aggregate) $ \(v, a) ->
       -- If we've advanced N events past the last snapshot, we create a
       -- new snapshot.
       let sv = A.aggregateSnapshotVersion aggregate in

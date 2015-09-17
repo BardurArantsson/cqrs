@@ -1,0 +1,38 @@
+Name:                cqrs-core
+Version:             0.10.0
+Synopsis:            Command-Query Responsibility Segregation
+Description:         Haskell implementation of the CQRS architectural pattern.
+License:             MIT
+License-file:        LICENSE
+Category:            Data
+Cabal-version:       >=1.10
+Build-type:          Simple
+Author:              Bardur Arantsson
+Maintainer:          Bardur Arantsson <bardur@scientician.net>
+
+Library
+  Build-Depends:       base >= 4.8 && < 5
+                     , bytestring >= 0.9.0.1
+                     , containers >= 0.5 && < 1
+                     , deepseq >= 1.4 && < 2
+                     , io-streams >= 1.2 && < 2
+                     , transformers >= 0.4.1 && < 0.5
+                     , uuid-types >= 1.0 && < 1.1
+  Default-language:    Haskell2010
+  ghc-options:         -Wall
+  hs-source-dirs:      src
+  Exposed-modules:     Data.CQRS.Command
+                       Data.CQRS.Repository
+                       Data.CQRS.Query
+                       Data.CQRS.SnapshotStore
+                       Data.CQRS.Internal.Aggregate
+                       Data.CQRS.Internal.Repository
+                       Data.CQRS.Types.AggregateAction
+                       Data.CQRS.Types.ArchiveMetadata
+                       Data.CQRS.Types.ArchiveRef
+                       Data.CQRS.Types.ArchiveStore
+                       Data.CQRS.Types.EventStore
+                       Data.CQRS.Types.PersistedEvent
+                       Data.CQRS.Types.Snapshot
+                       Data.CQRS.Types.SnapshotStore
+                       Data.CQRS.Types.StoreError

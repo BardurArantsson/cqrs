@@ -1,0 +1,44 @@
+Name:                cqrs-memory
+Version:             0.10.0
+Synopsis:            Memory backend for the cqrs package.
+Description:         Memory backend for the cqrs package.
+License:             MIT
+License-file:        LICENSE
+Category:            Data
+Cabal-version:       >=1.10
+Build-type:          Simple
+Author:              Bardur Arantsson
+Maintainer:          Bardur Arantsson <bardur@scientician.net>
+
+Library
+  Build-Depends:       base >= 4.8 && < 5
+                     , bytestring >= 0.9.0.1
+                     , containers >= 0.5
+                     , cqrs-core >= 0.10.0 && < 0.11.0
+                     , io-streams >= 1.2 && < 2
+                     , stm >= 2.4 && < 3
+                     , uuid-types >= 1.0 && < 1.1
+  Default-language:    Haskell2010
+  ghc-options:         -Wall
+  hs-source-dirs:      src
+  Exposed-modules:     Data.CQRS.Memory.Internal.ArchiveStore
+                       Data.CQRS.Memory.Internal.EventStore
+                       Data.CQRS.Memory.Internal.SnapshotStore
+                       Data.CQRS.Memory.Internal.Storage
+                       Data.CQRS.Memory
+
+Test-Suite tests
+  Type:                exitcode-stdio-1.0
+  Hs-source-dirs:      src-test
+  Main-is:             Main.hs
+  Build-depends:       base == 4.*
+                     -- Self-dependency
+                     , cqrs-memory
+                     , cqrs-core >= 0.10.0 && < 0.11.0
+                     , cqrs-testkit >= 0.10.0 && < 0.11.0
+                     -- Test framework
+                     , hspec >= 2.2.0 && < 3.0
+                     -- Libraries
+                     , random >= 1.1 && < 2
+  Ghc-options:         -Wall
+  Default-language:    Haskell2010

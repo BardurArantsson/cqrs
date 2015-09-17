@@ -1,0 +1,11 @@
+.notifications-container {
+    position: absolute;
+    width: 30em;
+    top: 0;
+    right: 0;
+}
+
+.notifications-item {
+    padding: 10px;
+    margin: 5px;
+}

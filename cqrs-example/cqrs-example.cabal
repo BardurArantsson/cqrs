@@ -1,0 +1,51 @@
+Name:                cqrs-example
+Version:             0.10.0
+Synopsis:            Example for cqrs package
+Description:         Example for cqrs package
+License:             MIT
+License-file:        LICENSE
+Author:              Bardur Arantsson
+Maintainer:          spam@scientician.net
+Category:            Web
+Build-type:          Simple
+Cabal-version:       >=1.10
+Extra-source-files:
+    static/bower_components/bootstrap/dist/css/bootstrap.min.css
+    static/bower_components/superagent/superagent.js
+    static/index.html
+    static/css/style.css
+    static/js/bundle.js
+
+Executable cqrs-example
+  Main-is:           CQRSExample/Main.hs
+  Ghc-options:       -Wall
+  Build-depends:     base >= 4.8 && < 5
+                   , aeson >= 0.8 && < 0.9
+                   , async >= 2.0 && < 3
+                   , blaze-builder >= 0.3 && < 0.4
+                   , bytestring >= 0.9 && < 0.11
+                   , cereal >= 0.4.0.1 && < 0.5
+                   , containers >= 0.4 && < 0.6
+                   , cqrs-core >= 0.10.0 && < 0.11.0
+                   , cqrs-memory >= 0.10.0 && < 0.11.0
+                   , deepseq >= 1.4 && < 2
+                   , io-streams >= 1.2 && < 2
+                   , random >= 1.1 && < 2
+                   , scotty >= 0.9.0 && < 1
+                   , stm >= 2.4
+                   , text >= 1.1.0 && < 2
+                   , transformers >= 0.4.1 && < 0.5
+                   , uuid-types >= 1.0 && < 1.1
+                   , warp >= 3 && < 3.1
+                   , wai-middleware-static >= 0.7 && < 0.8
+                   , wai-extra >= 3.0.2 && < 4
+  Hs-source-dirs:    src
+  Other-modules:     CQRSExample.Aggregates
+                     CQRSExample.AggregateAction
+                     CQRSExample.Commands
+                     CQRSExample.Events
+                     CQRSExample.Json
+                     CQRSExample.Notifications
+                     CQRSExample.Query
+                     CQRSExample.Routing
+  Default-language:  Haskell2010

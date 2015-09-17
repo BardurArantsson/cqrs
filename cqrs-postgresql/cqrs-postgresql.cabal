@@ -1,0 +1,59 @@
+Name:                cqrs-postgresql
+Version:             0.10.0
+Synopsis:            PostgreSQL backend for the cqrs package.
+Description:         PostgreSQL backend for the cqrs package.
+License:             MIT
+License-file:        LICENSE
+Category:            Data
+Cabal-version:       >=1.10
+Build-type:          Simple
+Author:              Bardur Arantsson
+Maintainer:          Bardur Arantsson <bardur@scientician.net>
+
+Library
+  build-depends:      base >= 4.8 && < 5
+                    , bytestring >= 0.9.0.1
+                    , bytestring-lexing >= 0.4 && < 0.5
+                    , cqrs-core >= 0.10.0 && < 0.11.0
+                    , deepseq >= 1.4 && < 2
+                    , enclosed-exceptions >= 1.0.1 && < 2
+                    , io-streams >= 1.2 && < 2
+                    , resource-pool >= 0.2.1 && < 0.3
+                    , postgresql-libpq >= 0.9.0.1 && < 0.10
+                    , text >= 1.0 && < 2
+                    , time >= 1.5 && < 1.6
+                    , transformers >= 0.4.1 && < 0.5
+                    , uuid-types >= 1.0 && < 1.1
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+  hs-source-dirs:     src
+  exposed-modules:    Data.CQRS.PostgreSQL
+                      Data.CQRS.PostgreSQL.Migrations
+                      Data.CQRS.PostgreSQL.Internal.ArchiveStore
+                      Data.CQRS.PostgreSQL.Internal.EventStore
+                      Data.CQRS.PostgreSQL.Internal.Migration
+                      Data.CQRS.PostgreSQL.Internal.SnapshotStore
+                      Data.CQRS.PostgreSQL.Internal.Utils
+
+Test-Suite tests
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     src-test
+  main-is:            Main.hs
+  build-depends:      base == 4.*
+                    , bytestring >= 0.9.0.1
+                    , cqrs-core >= 0.10.0 && < 0.11.0
+                    , cqrs-testkit >= 0.10.0 && < 0.11.0
+                    , io-streams >= 1.2 && < 2
+                    , pg-harness-client >= 0.4.0 && < 0.5.0
+                    , postgresql-libpq >= 0.9.0.1 && < 0.10
+                    , random >= 1.1 && < 2
+                    , resource-pool >= 0.2.1 && < 0.3
+                    , uuid-types >= 1.0 && < 1.1
+                    -- Self-dependency
+                    , cqrs-postgresql
+                    -- Test framework:
+                    , hspec >= 2.2.0 && < 3.0
+  default-language:   Haskell2010
+  ghc-options:        -Wall
+  other-modules:      Data.CQRS.PostgreSQL.Internal.UtilsSpec
+                      Data.CQRS.PostgreSQL.Internal.MigrationSpec

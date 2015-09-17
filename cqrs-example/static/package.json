@@ -1,0 +1,22 @@
+{
+  "name": "cqrs-example",
+  "version": "1.0.0",
+  "description": "CQRS Example Application Front end",
+  "main": "index.js",
+  "author": "Bardur Arantsson",
+  "scripts": {
+    "bundle": "browserify js/boot.js -d -p [minifyify --map js/bundle.map.json --output js/bundle.map.json] -t babelify -o js/bundle.js"
+  },
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {},
+  "dependencies": {
+    "babel": "^5.8.23",
+    "babelify": "^6.3.0",
+    "browserify": "^11.1.0",
+    "classnames": "^2.1.3",
+    "minifyify": "^7.0.6",
+    "react": "^0.13.3",
+    "reflux": "^0.2.12"
+  }
+}

@@ -1,0 +1,39 @@
+Name:                cqrs-testkit
+Version:             0.10.0
+Synopsis:            Command-Query Responsibility Segregation Test Support
+Description:         Test Support for CQRS integration components.
+License:             MIT
+License-file:        LICENSE
+Category:            Data
+Cabal-version:       >=1.10
+Build-type:          Simple
+Author:              Bardur Arantsson
+Maintainer:          Bardur Arantsson <bardur@scientician.net>
+
+Library
+  Build-Depends:       base >= 4.8 && < 5
+                     , bytestring >= 0.9.0.1
+                     , containers >= 0.5 && < 1
+                     , cqrs-core >= 0.10.0 && < 0.11.0
+                     , deepseq >= 1.4 && < 2
+                     , io-streams >= 1.2 && < 2
+                     , lifted-base >= 0.2.3 && < 1
+                     , random >= 1.0 && < 2
+                     , transformers >= 0.4.1 && < 0.5
+                     , uuid-types >= 1.0 && < 1.1
+                     -- Test framework
+                     , hspec >= 2.2.0 && < 3.0
+                     , HUnit >= 1.3 && < 2.0
+  Default-language:    Haskell2010
+  ghc-options:         -Wall
+  hs-source-dirs:      src
+  Exposed-modules:     Data.CQRS.Test.TestKit
+                       Data.CQRS.Test.Internal.AggregateAction
+                       Data.CQRS.Test.Internal.ArchiveStoreUtils
+                       Data.CQRS.Test.Internal.ArchiveStoreTest
+                       Data.CQRS.Test.Internal.EventStoreTest
+                       Data.CQRS.Test.Internal.RepositoryTest
+                       Data.CQRS.Test.Internal.Scope
+                       Data.CQRS.Test.Internal.SnapshotTest
+                       Data.CQRS.Test.Internal.TestKitSettings
+                       Data.CQRS.Test.Internal.Utils

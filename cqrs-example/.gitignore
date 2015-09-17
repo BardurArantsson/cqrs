@@ -1,0 +1,3 @@
+*.db
+.cabal-sandbox
+cabal.sandbox.config

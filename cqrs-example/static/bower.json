@@ -1,0 +1,16 @@
+{
+  "name": "cqrs-example",
+  "version": "1",
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "superagent": "~0.21.0",
+    "bootstrap": "~3.3.1"
+  }
+}

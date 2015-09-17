@@ -1,5 +1,5 @@
 Name:                cqrs-memory
-Version:             0.10.0
+Version:             0.11.0
 Synopsis:            Memory backend for the cqrs package.
 Description:         Memory backend for the cqrs package.
 License:             MIT
@@ -14,7 +14,7 @@ Library
   Build-Depends:       base >= 4.8 && < 5
                      , bytestring >= 0.9.0.1
                      , containers >= 0.5
-                     , cqrs-core >= 0.10.0 && < 0.11.0
+                     , cqrs-core >= 0.11.0 && < 0.12.0
                      , io-streams >= 1.2 && < 2
                      , stm >= 2.4 && < 3
                      , uuid-types >= 1.0 && < 1.1
@@ -34,8 +34,8 @@ Test-Suite tests
   Build-depends:       base == 4.*
                      -- Self-dependency
                      , cqrs-memory
-                     , cqrs-core >= 0.10.0 && < 0.11.0
-                     , cqrs-testkit >= 0.10.0 && < 0.11.0
+                     , cqrs-core >= 0.11.0 && < 0.12.0
+                     , cqrs-testkit >= 0.11.0 && < 0.12.0
                      -- Test framework
                      , hspec >= 2.2.0 && < 3.0
                      -- Libraries

@@ -1,5 +1,5 @@
 Name:                cqrs-core
-Version:             0.10.0
+Version:             0.11.0
 Synopsis:            Command-Query Responsibility Segregation
 Description:         Haskell implementation of the CQRS architectural pattern.
 License:             MIT

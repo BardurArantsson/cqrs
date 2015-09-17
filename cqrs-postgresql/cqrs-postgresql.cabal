@@ -1,5 +1,5 @@
 Name:                cqrs-postgresql
-Version:             0.10.0
+Version:             0.11.0
 Synopsis:            PostgreSQL backend for the cqrs package.
 Description:         PostgreSQL backend for the cqrs package.
 License:             MIT
@@ -14,7 +14,7 @@ Library
   build-depends:      base >= 4.8 && < 5
                     , bytestring >= 0.9.0.1
                     , bytestring-lexing >= 0.4 && < 0.5
-                    , cqrs-core >= 0.10.0 && < 0.11.0
+                    , cqrs-core >= 0.11.0 && < 0.12.0
                     , deepseq >= 1.4 && < 2
                     , enclosed-exceptions >= 1.0.1 && < 2
                     , io-streams >= 1.2 && < 2
@@ -41,8 +41,8 @@ Test-Suite tests
   main-is:            Main.hs
   build-depends:      base == 4.*
                     , bytestring >= 0.9.0.1
-                    , cqrs-core >= 0.10.0 && < 0.11.0
-                    , cqrs-testkit >= 0.10.0 && < 0.11.0
+                    , cqrs-core >= 0.11.0 && < 0.12.0
+                    , cqrs-testkit >= 0.11.0 && < 0.12.0
                     , io-streams >= 1.2 && < 2
                     , pg-harness-client >= 0.4.0 && < 0.5.0
                     , postgresql-libpq >= 0.9.0.1 && < 0.10

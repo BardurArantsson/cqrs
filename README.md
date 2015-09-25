@@ -1,5 +1,7 @@
 # CQRS for Haskell
 
+## Introduction
+
 This is a Haskell implementation of the CQRS+ES architectural pattern.
 It combines two patterns which are each powerful in their own right, but
 whose combination is exponentially more powerful yet.
@@ -22,7 +24,7 @@ has an [introduction to Event
 Sourcing](http://martinfowler.com/eaaDev/EventSourcing.html) which I
 recommend reading if you're not already familiar with ES.
 
-# Example Application
+## Example Application
 
 A simple example application is provided in the
 [cqrs-example](https://github.com/BardurArantsson/cqrs/tree/master/cqrs-example)
@@ -31,7 +33,7 @@ framework and [scotty](http://hackage.haskell.org/package/scotty) on
 the backend and uses [React](https://facebook.github.io/react/) on the
 frontend. The code should hopefully mostly be self-explanatory.
 
-# API Stability and Planned/Missing Features
+## API Stability and Planned/Missing Features
 
 At *least* the following changes are currently planned:
 

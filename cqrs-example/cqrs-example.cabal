@@ -16,6 +16,10 @@ Extra-source-files:
     static/css/style.css
     static/js/bundle.js
 
+Source-Repository head
+  Type:     git
+  Location: https://github.com/BardurArantsson/cqrs
+
 Executable cqrs-example
   Main-is:           CQRSExample/Main.hs
   Ghc-options:       -Wall

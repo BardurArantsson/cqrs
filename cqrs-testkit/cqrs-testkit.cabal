@@ -10,6 +10,10 @@ Build-type:          Simple
 Author:              Bardur Arantsson
 Maintainer:          Bardur Arantsson <bardur@scientician.net>
 
+Source-Repository head
+  Type:     git
+  Location: https://github.com/BardurArantsson/cqrs
+
 Library
   Build-Depends:       base >= 4.8 && < 5
                      , bytestring >= 0.9.0.1

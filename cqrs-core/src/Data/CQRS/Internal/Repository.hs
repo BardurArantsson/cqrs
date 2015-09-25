@@ -21,7 +21,7 @@ data Settings = Settings
 
 -- | Default repository settings:
 --
---     * There are no snapshot by default
+--     * There are no snapshots by default
 --
 defaultSettings :: Settings
 defaultSettings = Settings

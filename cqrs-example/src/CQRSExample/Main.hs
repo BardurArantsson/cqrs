@@ -51,14 +51,11 @@ eventSourcingThread qs archiveStore serverEvents publishedEvents = do
       putStrLn "Traversing archives..."
       -- Traverse and process all the events.
       enumerateAllEvents archiveStore $ \inputStream -> do
-        drain inputStream processEvent
+        drain inputStream $ \(aggregateId, event) -> do
+          processEvents aggregateId [event]
       -- Go again after a while.
       threadDelay 30000000
       traverseArchives
-
-    processEvent :: (UUID, PersistedEvent Event) -> IO ()
-    processEvent (aggregateId, ev) = do
-      processEvents aggregateId [ev]
 
     processPublishedEvents :: IO ()
     processPublishedEvents = do
@@ -67,15 +64,15 @@ eventSourcingThread qs archiveStore serverEvents publishedEvents = do
         -- Wait for events to be published.
         (aggregateId, evs) <- atomically $ C.readTChan publishedEvents
         processEvents aggregateId evs
+        -- Send out notifications to client
+        let notifications = updateNotifications (aggregateId, evs) mempty
+        when (notifications /= mempty) $ do
+          atomically $ C.writeTChan serverEvents $! toServerEvent $ notifications
 
     processEvents :: UUID -> [PersistedEvent Event] -> IO ()
     processEvents aggregateId evs = do
       -- Supply to Query to update its state.
       runQuery qs $ reactToEvents aggregateId evs
-      -- Send out a server event if we have any notifications.
-      let notifications = updateNotifications (aggregateId, evs) mempty
-      when (notifications /= mempty) $ do
-        atomically $ C.writeTChan serverEvents $! toServerEvent $ notifications
 
 -- Start serving the application.
 startServing :: IO ()

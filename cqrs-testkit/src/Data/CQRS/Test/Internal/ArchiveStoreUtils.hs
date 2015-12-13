@@ -9,14 +9,13 @@ import           Data.CQRS.Types.ArchiveRef (ArchiveRef(..))
 import           Data.CQRS.Types.ArchiveStore (ArchiveStore(..), enumerateAllEvents)
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent)
 import           Data.CQRS.Test.Internal.Scope (ScopeM, ask)
-import           Data.UUID.Types (UUID)
 import qualified System.IO.Streams.List as SL
 import           Test.Hspec (shouldBe)
 
 -- Read all events from the event store, using the archives. Also
 -- asserts that all archives have consistent metadata and returns the
 -- number of archives.
-readAllEventsFromArchiveStore :: (s -> ArchiveStore e) -> ScopeM s (Int, [(UUID, PersistedEvent e)])
+readAllEventsFromArchiveStore :: (s -> ArchiveStore i e) -> ScopeM s (Int, [(i, PersistedEvent e)])
 readAllEventsFromArchiveStore f = do
   archiveStore <- fmap f ask
   archiveCount <- liftIO $ assertConsistentArchiveMetadata archiveStore
@@ -24,7 +23,7 @@ readAllEventsFromArchiveStore f = do
   return (archiveCount, events)
 
 -- Retrieve all events from an event store.
-readAllEvents' :: ArchiveStore e -> IO [(UUID, PersistedEvent e)]
+readAllEvents' :: ArchiveStore i e -> IO [(i, PersistedEvent e)]
 readAllEvents' archiveStore = do
   eventsRef <- newIORef [ ]
   enumerateAllEvents archiveStore $ \inputStream -> do
@@ -35,7 +34,7 @@ readAllEvents' archiveStore = do
 -- Assert that all archives have consistent metadata and return the
 -- number of archives that were traversed (not counting the "Current"
 -- archive).
-assertConsistentArchiveMetadata :: ArchiveStore e -> IO Int
+assertConsistentArchiveMetadata :: ArchiveStore i e -> IO Int
 assertConsistentArchiveMetadata archiveStore = do
   -- We have a special case for "no archives".
   maybeLatestArchiveMetadata <- asReadLatestArchiveMetadata archiveStore

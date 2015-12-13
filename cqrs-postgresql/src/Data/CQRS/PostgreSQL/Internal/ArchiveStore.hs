@@ -89,11 +89,11 @@ archiveEvents cp uuidSupply archiveSize =
     sqlFillNextArchive =
       "UPDATE event \
       \         SET archive_uuid = $1 \
-      \       WHERE (aggregate_uuid, seq_no) IN \
-      \   (  SELECT aggregate_uuid, seq_no \
+      \       WHERE (aggregate_id, seq_no) IN \
+      \   (  SELECT aggregate_id, seq_no \
       \        FROM event \
       \       WHERE archive_uuid IS NULL \
-      \    ORDER BY aggregate_uuid, seq_no \
+      \    ORDER BY aggregate_id, seq_no \
       \       LIMIT $2)"
 
 readLatestArchiveMetadata :: Pool Connection -> IO (Maybe ArchiveMetadata)
@@ -116,7 +116,7 @@ readArchiveMetadata cp archiveId =
           \  FROM archive \
           \ WHERE archive_uuid = $1"
 
-readArchive :: Pool Connection -> ArchiveRef -> (InputStream (UUID, PersistedEvent ByteString) -> IO a) -> IO a
+readArchive :: Pool Connection -> ArchiveRef -> (InputStream (ByteString, PersistedEvent ByteString) -> IO a) -> IO a
 readArchive cp archiveRef p =
   withResource cp $ \c -> withTransaction c $ do
     query c archiveRef $ SC.map unpack >=> p
@@ -128,26 +128,25 @@ readArchive cp archiveRef p =
     query c CurrentArchive           = ioQuery c sqlReadArchiveCurrent [ ]
     query c (NamedArchive archiveId) = ioQuery c sqlReadArchiveNamed [ SqlUUID $ Just archiveId ]
     -- Unpack result columns
-    unpack [ SqlUUID (Just aggregateId)
-           , SqlUUID (Just eventId)
+    unpack [ SqlByteArray (Just aggregateId)
            , SqlByteArray (Just eventData)
            , SqlInt32 (Just sequenceNumber)
-           ] = (aggregateId, PersistedEvent eventData (fromIntegral sequenceNumber) eventId)
+           ] = (aggregateId, PersistedEvent eventData (fromIntegral sequenceNumber))
     unpack columns = error $ badQueryResultMsg [show archiveRef] columns
     -- SQL
     sqlReadArchiveCurrent =
-        "  SELECT aggregate_uuid, event_uuid, event_data, seq_no \
+        "  SELECT aggregate_id, event_data, seq_no \
         \    FROM event \
         \   WHERE archive_uuid IS NULL \
-        \ORDER BY aggregate_uuid, seq_no ASC"
+        \ORDER BY aggregate_id, seq_no ASC"
     sqlReadArchiveNamed =
-        "  SELECT aggregate_uuid, event_uuid, event_data, seq_no \
+        "  SELECT aggregate_id, event_data, seq_no \
         \   FROM event \
         \  WHERE archive_uuid = $1 \
-        \ORDER BY aggregate_uuid, seq_no ASC"
+        \ORDER BY aggregate_id, seq_no ASC"
 
 -- | Create an archive store backed by a PostgreSQL connection pool.
-newArchiveStore :: IO UUID -> Pool Connection -> IO (ArchiveStore ByteString)
+newArchiveStore :: IO UUID -> Pool Connection -> IO (ArchiveStore ByteString ByteString)
 newArchiveStore uuidSupply connectionPool = do
   return $ ArchiveStore
              { asGetUnarchivedEventCount = getUnarchivedEventCount connectionPool
@@ -156,4 +155,3 @@ newArchiveStore uuidSupply connectionPool = do
              , asReadArchiveMetadata = readArchiveMetadata connectionPool
              , asReadArchive = readArchive connectionPool
              }
-

@@ -5,35 +5,35 @@ module Data.CQRS.Test.Internal.SnapshotTest
 
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
-import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, ask, randomUUID)
+import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, ask)
 import qualified Data.CQRS.Test.Internal.Scope as S
 import           Data.CQRS.Test.Internal.TestKitSettings
+import           Data.CQRS.Test.Internal.Utils (randomId)
 import           Data.CQRS.Types.Snapshot
 import           Data.CQRS.Types.SnapshotStore
-import           Data.UUID.Types (UUID)
 import           Test.Hspec (Spec, describe, shouldBe)
 import qualified Test.Hspec as Hspec
 
 -- Write snapshot
-writeSnapshot :: UUID -> Snapshot a -> ScopeM (SnapshotStore a) ()
+writeSnapshot :: i -> Snapshot a -> ScopeM (SnapshotStore i a) ()
 writeSnapshot aggregateId snapshot = do
   snapshotStore <- ask
   liftIO $ ssWriteSnapshot snapshotStore aggregateId snapshot
 
 -- Read a snapshot
-readSnapshot :: UUID -> ScopeM (SnapshotStore a) (Maybe (Snapshot a))
+readSnapshot :: i -> ScopeM (SnapshotStore i a) (Maybe (Snapshot a))
 readSnapshot aggregateId = do
   snapshotStore <- ask
   liftIO $ ssReadSnapshot snapshotStore aggregateId
 
 -- Test suite for memory backend.
-mkSnapshotStoreSpec :: TestKitSettings a (SnapshotStore ByteString) -> Spec
+mkSnapshotStoreSpec :: TestKitSettings a (SnapshotStore ByteString ByteString) -> Spec
 mkSnapshotStoreSpec testKitSettings = do
 
   describe "SnapshotStore" $ do
 
     it "writing first snapshot works" $ do
-      aggregateId <- randomUUID
+      aggregateId <- randomId
       -- Write the snapshot.
       let rs = (Snapshot 3 "Hello, world")
       writeSnapshot aggregateId rs
@@ -43,7 +43,7 @@ mkSnapshotStoreSpec testKitSettings = do
       verify $ rs' `shouldBe` Just rs
 
     it "updating snapshot overwrites existing one" $ do
-      aggregateId <- randomUUID
+      aggregateId <- randomId
       -- Write snapshot "twice"
       let rs1 = (Snapshot 3 "Hello")
       let rs2 = (Snapshot 4 "Goodbye")

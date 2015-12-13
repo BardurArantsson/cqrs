@@ -19,13 +19,12 @@ migrate connection =
   where
     sqlCreateEventTbl =
         "CREATE TABLE event ( \
-        \  aggregate_uuid UUID NOT NULL, \
-        \  event_uuid UUID NOT NULL, \
+        \  aggregate_id BYTEA NOT NULL, \
         \  event_data BYTEA NOT NULL, \
         \  seq_no INTEGER NOT NULL, \
         \  \"timestamp\" BIGINT NOT NULL, \
         \  archive_uuid UUID, \
-        \  PRIMARY KEY (aggregate_uuid, seq_no) \
+        \  PRIMARY KEY (aggregate_id, seq_no) \
         \)"
     sqlCreateEventArchiveIdx =
         "CREATE INDEX event_archive_idx ON event ( \
@@ -40,6 +39,6 @@ migrate connection =
         \)"
     sqlCreateSnapshotTbl =
         "CREATE TABLE snapshot ( \
-        \  aggregate_uuid UUID PRIMARY KEY, \
+        \  aggregate_id BYTEA PRIMARY KEY, \
         \  data BYTEA, version INTEGER \
         \)"

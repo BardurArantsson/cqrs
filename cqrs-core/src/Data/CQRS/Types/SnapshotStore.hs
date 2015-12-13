@@ -1,47 +1,50 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.Types.SnapshotStore
     ( SnapshotStore(..)
-    , applyPrism
+    , transform
     , nullSnapshotStore
     ) where
 
 import Data.CQRS.Types.Snapshot (Snapshot(..))
-import Data.UUID.Types (UUID)
 
 -- | A snapshot store is used for storing snapshots.
-data SnapshotStore a = SnapshotStore
+data SnapshotStore i a = SnapshotStore
     {
       -- | Write out a snapshot. Snapshot version numbers are NOT
       -- checked for validity (e.g. whether they are greater than the
       -- existing snapshot version numbers).
-      ssWriteSnapshot :: UUID -> Snapshot a -> IO ()
+      ssWriteSnapshot :: i -> Snapshot a -> IO ()
     ,
       -- | Read latest snapshot of an aggregate identified by UUID. A
       -- snapshot store is permitted to return 'Nothing' in all cases.
-      ssReadSnapshot :: UUID -> IO (Maybe (Snapshot a))
+      ssReadSnapshot :: i -> IO (Maybe (Snapshot a))
     }
 
--- | Transform an implementation of 'SnapshotStore a' to an
--- implementation of 'SnapshotStore b' via a prism. This is typically
+-- | Transform an implementation of 'SnapshotStore i a' to an
+-- implementation of 'SnapshotStore j b' via a prism (for the
+-- snapshot) and isomorphism (for the aggregate ID). This is typically
 -- used to add serialization/deserialization to snapshot stores which
 -- do not support storing anything other than binary data. Note that
--- the prism is allowed to return 'Nothing' to indicate that data could
--- not be transformed. This can be used to avoid the need for complicated
--- versioning of snapshot data by using simple version tags/hashes to
--- determine compatibility with stored snapshots.
-applyPrism :: (a -> b, b -> Maybe a) -> SnapshotStore b -> SnapshotStore a
-applyPrism (f, g) (SnapshotStore writeSnapshot' readSnapshot') =
+-- the prism is allowed to return 'Nothing' to indicate that data
+-- could not be transformed. This can be used to avoid the need for
+-- complicated versioning of snapshot data by using simple version
+-- tags/hashes to determine compatibility with stored snapshots.
+transform :: forall a a' i i' . (a' -> a, a -> Maybe a') -> (i' -> i, i -> i') -> SnapshotStore i a -> SnapshotStore i' a'
+transform (fa, ga) (fi, _) (SnapshotStore writeSnapshot' readSnapshot') =
     SnapshotStore writeSnapshot readSnapshot
     where
+      writeSnapshot :: i' -> Snapshot a' -> IO ()
       writeSnapshot aggregateId (Snapshot v a) = do
-          writeSnapshot' aggregateId $ Snapshot v $ f a
+          writeSnapshot' (fi aggregateId) $ Snapshot v $ fa a
+      readSnapshot :: i' -> IO (Maybe (Snapshot a'))
       readSnapshot aggregateId = do
-          fmap (f' =<<) $ (readSnapshot' aggregateId)
+          fmap (f' =<<) $ readSnapshot' (fi aggregateId)
           where
-            f' (Snapshot v a) = g a >>= Just . Snapshot v
+            f' (Snapshot v a) = ga a >>= Just . Snapshot v
 
 -- | The "null" snapshot store, i.e. a snapshot store which never
 -- actually stores any snapshots.
-nullSnapshotStore :: SnapshotStore a
+nullSnapshotStore :: SnapshotStore i a
 nullSnapshotStore =
     SnapshotStore { ssWriteSnapshot = \_ _ -> return ()
                   , ssReadSnapshot = \_ -> return Nothing

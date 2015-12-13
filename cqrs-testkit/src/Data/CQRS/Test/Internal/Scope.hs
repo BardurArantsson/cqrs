@@ -2,16 +2,13 @@ module Data.CQRS.Test.Internal.Scope
     ( ScopeM
     , ask
     , mkRunScope
-    , randomUUID
     , verify
     ) where
 
-import           Control.Exception (bracket)
-import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
-import           Data.CQRS.Test.Internal.TestKitSettings
-import           Data.UUID.Types (UUID)
-import           System.Random (randomIO)
+import Control.Exception (bracket)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
+import Data.CQRS.Test.Internal.TestKitSettings
 
 -- Monad providing ambient access to the current spec scope. This is
 -- test code, so we don't bother making it opaque.
@@ -21,10 +18,6 @@ type ScopeM s r = ReaderT s IO r
 -- for 'lifIO' which can be used to aid readability.
 verify :: IO r -> ScopeM s r
 verify = liftIO
-
--- Lifted version of randomUUID. This is just an alias for convenience.
-randomUUID :: ScopeM s UUID
-randomUUID = liftIO $ randomIO
 
 -- Make a "scope runner" function from a given IO action and test
 -- settings. Each scope will be automatically bracketed by the "setUp"

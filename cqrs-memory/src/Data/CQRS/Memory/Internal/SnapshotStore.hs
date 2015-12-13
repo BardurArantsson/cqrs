@@ -9,20 +9,19 @@ import           Data.CQRS.Types.Snapshot
 import           Data.CQRS.Types.SnapshotStore
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import           Data.UUID.Types (UUID)
 
-type SnapStore a = TVar (Map UUID (Snapshot a))
+type SnapStore i a = TVar (Map i (Snapshot a))
 
-writeSnapshot :: SnapStore a -> UUID -> Snapshot a -> IO ()
+writeSnapshot :: (Ord i) => SnapStore i a -> i -> Snapshot a -> IO ()
 writeSnapshot store aggregateId snapshot = do
   atomically $ modifyTVar' store (M.insert aggregateId snapshot)
 
-readSnapshot :: SnapStore a -> UUID -> IO (Maybe (Snapshot a))
+readSnapshot :: (Ord i) => SnapStore i a -> i -> IO (Maybe (Snapshot a))
 readSnapshot store aggregateId = do
   atomically $ liftM (M.lookup aggregateId) $ readTVar store
 
 -- | Create a new memory-backed snapshot store.
-newSnapshotStore :: IO (SnapshotStore a)
+newSnapshotStore :: (Ord i) => IO (SnapshotStore i a)
 newSnapshotStore = do
   store <- atomically $ newTVar M.empty
   return $ SnapshotStore

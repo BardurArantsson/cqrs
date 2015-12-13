@@ -22,15 +22,14 @@ import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import           Data.Typeable (Typeable)
-import           Data.UUID.Types (UUID)
 import           GHC.Generics (Generic)
 
-import           CQRSExample.Aggregates ()
+import           CQRSExample.TaskId (TaskId)
 import           CQRSExample.Events (Event(..), TaskEvent(..))
 
 -- Tasks.
 data QTask =
-    QTask { qTaskId :: UUID
+    QTask { qTaskId :: TaskId
           , qTaskTitle :: Text
           , qTaskState :: QTaskState }
     deriving (Typeable, Ord, Eq, Show, Generic)
@@ -42,8 +41,8 @@ data QTaskState = QTaskOpen
 
 -- Queryable state.
 data QueryState = QueryState
-    { qTasks :: Map UUID QTask
-    , qAggregateVersions :: Map UUID Int
+    { qTasks :: Map TaskId QTask
+    , qAggregateVersions :: Map TaskId Int
     } deriving (Show, Generic)
 
 -- Need NFData instances for deep evaluation.
@@ -71,7 +70,7 @@ qRunQ = do
   lift $ atomically $ readTVar qsr
 
 -- Query the task list
-qTaskList :: QueryM [(UUID, Text, QTaskState)]
+qTaskList :: QueryM [(TaskId, Text, QTaskState)]
 qTaskList = do
   tasks <- fmap qTasks qRunQ
   return $ map f $ filter p $ L.sortBy sf $ M.elems tasks
@@ -82,7 +81,7 @@ qTaskList = do
     p (QTask _ _ QTaskCompleted) = True
     p (QTask _ _ QTaskArchived) = False
 
-qCompletedTaskIdList :: QueryM [UUID]
+qCompletedTaskIdList :: QueryM [TaskId]
 qCompletedTaskIdList = do
   tasks <- fmap qTasks qRunQ
   return $ map f $ filter p $ M.elems tasks
@@ -92,7 +91,7 @@ qCompletedTaskIdList = do
       p (QTask _ _ QTaskOpen) = False
       p (QTask _ _ QTaskArchived) = False
 
-reactToEvents :: UUID -> [PersistedEvent Event] -> QueryM ()
+reactToEvents :: TaskId -> [PersistedEvent Event] -> QueryM ()
 reactToEvents aggregateId evs = do
   -- Just handle each event separately; in real production code
   -- updates should probably be batched to avoid excessive IO

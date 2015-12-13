@@ -7,45 +7,43 @@ import           Control.Exception.Lifted (try)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Test.Internal.TestKitSettings
-import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, ask, randomUUID)
+import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, ask)
 import qualified Data.CQRS.Test.Internal.Scope as S
+import           Data.CQRS.Test.Internal.Utils (randomId)
 import           Data.CQRS.Types.EventStore (EventStore, StoreError(VersionConflict))
 import qualified Data.CQRS.Types.EventStore as ES
 import           Data.CQRS.Types.PersistedEvent
-import           Data.UUID.Types (UUID)
 import           Test.Hspec (Spec, describe, shouldBe)
 import qualified Test.Hspec as Hspec
 import qualified System.IO.Streams.List as SL
 
 -- Ambient data for test scope for each spec.
-data Scope e = Scope { scopeEventStore :: EventStore e
-                     }
+data Scope i e = Scope { scopeEventStore :: EventStore i e
+                       }
 
 -- Store given events in exactly the order given.
-storeEvents :: UUID -> [PersistedEvent e] -> ScopeM (Scope e) ()
+storeEvents :: i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
 storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ (ES.esStoreEvents eventStore) aggregateId events
 
 -- Read all events for a given aggregate.
-readEvents :: UUID -> ScopeM (Scope e) [PersistedEvent e]
+readEvents :: i -> ScopeM (Scope i e) [PersistedEvent e]
 readEvents aggregateId = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ ES.esRetrieveEvents eventStore aggregateId (-1) $ SL.toList
 
 -- Test suite for event store which stores 'ByteString' events.
-mkEventStoreSpec :: TestKitSettings a (EventStore ByteString) -> Spec
+mkEventStoreSpec :: TestKitSettings a (EventStore ByteString ByteString) -> Spec
 mkEventStoreSpec testKitSettings = do
 
   describe "EventStore implementation" $ do
 
     it "should be able to retrieve stored events" $ do
-      aggregateId <- randomUUID
-      eventId0 <- randomUUID
-      eventId1 <- randomUUID
+      aggregateId <- randomId
       -- Write two events.
-      let expectedEvents = [ PersistedEvent "test event 0" 0 eventId0
-                           , PersistedEvent "test event 1" 1 eventId1
+      let expectedEvents = [ PersistedEvent "test event 0" 0
+                           , PersistedEvent "test event 1" 1
                            ]
       storeEvents aggregateId expectedEvents
       -- Retrieve the stored events.
@@ -54,12 +52,10 @@ mkEventStoreSpec testKitSettings = do
       verify $ actualEvents `shouldBe` expectedEvents
 
     it "should throw a VersionConflict exception when storing conflicting events in a single operation" $ do
-      aggregateId <- randomUUID
-      eventId0 <- randomUUID
-      eventId1 <- randomUUID
+      aggregateId <- randomId
       -- Write two conflicting events.
-      let conflictingEvents = [ PersistedEvent "test event 0" 0 eventId0
-                              , PersistedEvent "test event 1" 0 eventId1
+      let conflictingEvents = [ PersistedEvent "test event 0" 0
+                              , PersistedEvent "test event 1" 0
                               ]
       storeEvents aggregateId conflictingEvents `shouldThrow` VersionConflict aggregateId
       -- Make sure we didn't actually store any events
@@ -67,14 +63,12 @@ mkEventStoreSpec testKitSettings = do
       verify $ length storedEvents `shouldBe` 0
 
     it "should throw a VersionConflict exception when storing conflicting events in multiple operations" $ do
-      aggregateId <- randomUUID
-      eventId0 <- randomUUID
-      eventId1 <- randomUUID
+      aggregateId <- randomId
       -- Write a single event
-      let initialEvent = PersistedEvent "test event 0" 0 eventId0
+      let initialEvent = PersistedEvent "test event 0" 0
       storeEvents aggregateId [initialEvent]
       -- Write the event that should conflict
-      let conflictingEvents = [ PersistedEvent "test event 1" 0 eventId1 ]
+      let conflictingEvents = [ PersistedEvent "test event 1" 0 ]
       storeEvents aggregateId conflictingEvents `shouldThrow` VersionConflict aggregateId
       -- Make sure we didn't write the second event
       storedEvents <- readEvents aggregateId

@@ -26,6 +26,7 @@ Executable cqrs-example
   Build-depends:     base >= 4.8 && < 5
                    , aeson >= 0.8 && < 0.9
                    , async >= 2.0 && < 3
+                   , base16-bytestring >= 0.1.1 && < 0.2
                    , blaze-builder >= 0.3 && < 0.4
                    , bytestring >= 0.9 && < 0.11
                    , cereal >= 0.4.0.1 && < 0.5
@@ -35,11 +36,10 @@ Executable cqrs-example
                    , deepseq >= 1.4 && < 2
                    , io-streams >= 1.2 && < 2
                    , random >= 1.1 && < 2
-                   , scotty >= 0.9.0 && < 1
+                   , scotty >= 0.10.2 && < 1
                    , stm >= 2.4
                    , text >= 1.1.0 && < 2
                    , transformers >= 0.4.1 && < 0.5
-                   , uuid-types >= 1.0 && < 1.1
                    , warp >= 3 && < 3.1
                    , wai-middleware-static >= 0.7 && < 0.8
                    , wai-extra >= 3.0.2 && < 4
@@ -52,4 +52,5 @@ Executable cqrs-example
                      CQRSExample.Notifications
                      CQRSExample.Query
                      CQRSExample.Routing
+                     CQRSExample.TaskId
   Default-language:  Haskell2010

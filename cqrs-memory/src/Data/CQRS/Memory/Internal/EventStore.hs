@@ -16,12 +16,12 @@ import           Data.List (nub, sortBy)
 import           Data.Ord (comparing)
 import           Data.Sequence (Seq, (><))
 import qualified Data.Sequence as S
-import           Data.UUID.Types (UUID)
+import           Data.Typeable (Typeable)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.List as SL
 import qualified System.IO.Streams.Combinators as SC
 
-storeEvents :: Storage e -> UUID -> [PersistedEvent e] -> IO ()
+storeEvents :: (Eq i, Show i, Typeable i) => Storage i e -> i -> [PersistedEvent e] -> IO ()
 storeEvents (Storage store) aggregateId newEvents = atomically $ do
     -- Extract all existing events for this aggregate.
     events <- eventsByAggregateId store aggregateId
@@ -50,12 +50,12 @@ storeEvents (Storage store) aggregateId newEvents = atomically $ do
     lastStoredVersion [ ] = (-1)
     lastStoredVersion es  = maximum $ map peSequenceNumber es
 
-retrieveEvents :: Storage e -> UUID -> Int -> (InputStream (PersistedEvent e) -> IO a) -> IO a
+retrieveEvents :: (Eq i) => Storage i e -> i -> Int -> (InputStream (PersistedEvent e) -> IO a) -> IO a
 retrieveEvents (Storage store) aggregateId v0 f = do
   events <- fmap F.toList $ atomically $ eventsByAggregateId store aggregateId
   SL.fromList events >>= SC.filter (\e -> peSequenceNumber e > v0) >>= f
 
-retrieveAllEvents :: Storage e -> (InputStream (UUID, PersistedEvent e) -> IO a) -> IO a
+retrieveAllEvents :: (Ord i) => Storage i e -> (InputStream (i, PersistedEvent e) -> IO a) -> IO a
 retrieveAllEvents (Storage store) f = do
   -- We won't bother with efficiency since this is only
   -- really used for debugging/tests.
@@ -67,13 +67,13 @@ retrieveAllEvents (Storage store) f = do
     cf e = (eAggregateId e, peSequenceNumber $ ePersistedEvent e)
 
 
-eventsByAggregateId :: TVar (Store e) -> UUID -> STM (Seq (PersistedEvent e))
+eventsByAggregateId :: (Eq i) => TVar (Store i e) -> i -> STM (Seq (PersistedEvent e))
 eventsByAggregateId store aggregateId = do
   events <- readTVar store
   return $ fmap ePersistedEvent $ S.filter (\e -> aggregateId == eAggregateId e) $ msEvents events
 
 -- | Create a memory-backend event store.
-newEventStore :: Show e => Storage e -> IO (EventStore e)
+newEventStore :: (Eq i, Show i, Ord i, Typeable i, Show e) => Storage i e -> IO (EventStore i e)
 newEventStore storage = do
   return $ EventStore
     { esStoreEvents = storeEvents storage

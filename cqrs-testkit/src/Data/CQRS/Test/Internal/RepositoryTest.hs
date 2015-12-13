@@ -17,23 +17,22 @@ import           Data.CQRS.Repository
 import           Data.CQRS.Types.EventStore (EventStore)
 import           Data.CQRS.Types.SnapshotStore (nullSnapshotStore, SnapshotStore)
 import           Data.CQRS.Test.Internal.AggregateAction (byteStringAggregateAction)
-import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, randomUUID, mkRunScope)
+import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
 import           Data.CQRS.Test.Internal.TestKitSettings
+import           Data.CQRS.Test.Internal.Utils (randomId)
 import           Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import           Data.Maybe (fromJust)
-import           Data.UUID.Types (UUID)
-import qualified System.Random as R
 import qualified Test.Hspec as Hspec
 import           Test.Hspec (Spec, shouldBe)
 import           Test.HUnit (assertBool)
 
 -- Ambient data for test scope for each spec.
-data Scope a e = Scope { scopeRepository :: Repository a e
-                       , scopePublishedEvents :: IORef [(UUID, e, Int)]
-                       }
+data Scope i a e = Scope { scopeRepository :: Repository i a e
+                         , scopePublishedEvents :: IORef [(i, e, Int)]
+                         }
 
 -- Assert that the given list of events was published.
-assertDidPublish :: (Show e, Eq e) => [(UUID, e, Int)] -> ScopeM (Scope a e) ()
+assertDidPublish :: (Show e, Eq e, Show i, Eq i) => [(i, e, Int)] -> ScopeM (Scope i a e) ()
 assertDidPublish expectedEvents = do
   publishedEventsRef <- fmap scopePublishedEvents $ ask
   verify $ do
@@ -42,32 +41,32 @@ assertDidPublish expectedEvents = do
     forM_ (zip publishedEvents expectedEvents) $ uncurry shouldBe
 
 -- Get the repository which is in scope.
-getRepository :: ScopeM (Scope a e) (Repository a e)
+getRepository :: ScopeM (Scope i a e) (Repository i a e)
 getRepository = fmap scopeRepository ask
 
 -- Run a command in scope.
-runCommandT :: CommandT a e IO r -> ScopeM (Scope a e) r
+runCommandT :: CommandT i a e IO r -> ScopeM (Scope i a e) r
 runCommandT command = do
   repository <- getRepository
   liftIO $ C.runCommandT repository command
 
 -- Create a new test scope runner from the test kit settings.
-mkRunScope' :: Int -> TestKitSettings s (EventStore ByteString, SnapshotStore ByteString) -> (ScopeM (Scope ByteString ByteString) r -> IO r)
+mkRunScope' :: Int -> TestKitSettings s (EventStore ByteString ByteString, SnapshotStore ByteString ByteString) -> (ScopeM (Scope ByteString ByteString ByteString) r -> IO r)
 mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a -> do
   -- We collect all events published by the repository for verification
   publishedEventsRef <- newIORef []
   let publish (aggregateId, events') = atomicModifyIORef' publishedEventsRef $ \events ->
-        (events ++ map (\(PersistedEvent e s _) -> (aggregateId, e, s)) events', ())
+        (events ++ map (\(PersistedEvent e s) -> (aggregateId, e, s)) events', ())
   -- Repository setup
   (eventStore, snapshotStore) <- (tksMakeContext testKitSettings) a
   let settings = setSnapshotFrequency snapshotFrequency $ defaultSettings
-  let repository = newRepository settings byteStringAggregateAction eventStore snapshotStore publish R.randomIO
+  let repository = newRepository settings byteStringAggregateAction eventStore snapshotStore publish
   -- Build the ambient state.
   return $ Scope repository publishedEventsRef
 
 -- Given test kit settings, create the full spec for testing the
 -- repository implementation against those settings.
-mkRepositorySpec :: TestKitSettings a (EventStore ByteString, SnapshotStore ByteString) -> Spec
+mkRepositorySpec :: TestKitSettings a (EventStore ByteString ByteString, SnapshotStore ByteString ByteString) -> Spec
 mkRepositorySpec testKitSettings = do
   -- We do each set of tests both *with* and *without* a snapshot
   -- store and with varying snapshot frequency. This should hopefully
@@ -86,7 +85,7 @@ mkRepositorySpec testKitSettings = do
                         return (eventStore, nullSnapshotStore)
                  }
 
-mkSpec :: String -> (ScopeM (Scope ByteString ByteString) () -> IO ()) -> Spec
+mkSpec :: String -> (ScopeM (Scope ByteString ByteString ByteString) () -> IO ()) -> Spec
 mkSpec suffix runScope = do
 
   describe "Repository" $ do
@@ -153,15 +152,15 @@ mkSpec suffix runScope = do
 
     it "should not be possible to find a non-existent aggregate" $ do
       -- Exercise
-      aggregateId <- randomUUID
+      aggregateId <- randomId
       a <- findAggregate aggregateId
       -- Should NOT have found anything
       verify $ a `shouldBe` Nothing
 
     it "should be possible to work with two different aggregates (serially) in a command" $ do
       -- Setup
-      aggregateId0 <- randomUUID
-      aggregateId1 <- randomUUID
+      aggregateId0 <- randomId
+      aggregateId1 <- randomId
       -- Exercise
       _ <- runCommandT $ do
         C.createAggregate aggregateId0 $ \_ -> do
@@ -202,7 +201,7 @@ mkSpec suffix runScope = do
 
     it "'getter' function returns up-to-date values when creating an aggregate" $ do
       -- Setup
-      aggregateId <- randomUUID
+      aggregateId <- randomId
       -- Exercise
       (a, a') <- runCommandT $ do
         C.createAggregate aggregateId $ \get -> do
@@ -223,10 +222,10 @@ mkSpec suffix runScope = do
     describe msg = Hspec.describe (msg ++ " " ++ suffix)
 
 -- Create an aggregate with an initial series of events.
-newAggregate :: (NFData a, NFData e) => [e] -> ScopeM (Scope a e) (UUID, a)
+newAggregate :: (NFData a, NFData e) => [e] -> ScopeM (Scope ByteString a e) (ByteString, a)
 newAggregate es = do
   -- Create new aggregate ID.
-  aggregateId <- randomUUID
+  aggregateId <- randomId
   -- Sanity check
   liftIO $ assertBool "List of initial events must be non-emtpy" (length es > 0)
   -- Create the aggregate with its initial list of events
@@ -237,13 +236,13 @@ newAggregate es = do
     return (aggregateId, a)
 
 -- Load an aggregate value.
-loadAggregate :: UUID -> ScopeM (Scope a e) a
+loadAggregate :: i -> ScopeM (Scope i a e) a
 loadAggregate aggregateId = liftM get $ runCommandT $ C.readAggregate aggregateId
     where
       get Nothing  = error $ "loadAggregate: Missing expected aggregate"
       get (Just a) = a
 
 -- Get aggregate's value, if the aggregate exists
-findAggregate :: UUID -> ScopeM (Scope a e) (Maybe a)
+findAggregate :: i -> ScopeM (Scope i a e) (Maybe a)
 findAggregate = do
   runCommandT . (flip C.updateAggregate) id

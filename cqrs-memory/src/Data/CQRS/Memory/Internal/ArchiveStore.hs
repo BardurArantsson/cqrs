@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.Memory.Internal.ArchiveStore
     ( newArchiveStore
     ) where
@@ -27,21 +28,21 @@ uncons s = case viewl s of
              EmptyL    -> Nothing
              (x :< xs) -> Just (x, xs)
 
-inCurrentArchive :: Event e -> Bool
+inCurrentArchive :: Event i e -> Bool
 inCurrentArchive (Event _ _ CurrentArchive) = True
 inCurrentArchive (Event _ _ (NamedArchive _)) = False
 
-readLatestArchiveMetadata :: Storage e -> IO (Maybe ArchiveMetadata)
+readLatestArchiveMetadata :: Storage i e -> IO (Maybe ArchiveMetadata)
 readLatestArchiveMetadata (Storage store) = do
   archives <- fmap msArchives $ readTVarIO store
   return $ lastOption archives
 
-readArchiveMetadata :: Storage e -> UUID -> IO (Maybe ArchiveMetadata)
+readArchiveMetadata :: Storage i e -> UUID -> IO (Maybe ArchiveMetadata)
 readArchiveMetadata (Storage store) archiveId = do
   archives <- fmap msArchives $ readTVarIO store
   return $ F.find (\a -> amArchiveId a == archiveId) archives
 
-readArchive :: Storage e -> ArchiveRef -> (InputStream (UUID, PersistedEvent e) -> IO a) -> IO a
+readArchive :: Storage i e -> ArchiveRef -> (InputStream (i, PersistedEvent e) -> IO a) -> IO a
 readArchive (Storage store) archiveRef f = do
   events <- liftM msEvents $ readTVarIO store
   eventStream <- SL.fromList $ F.toList
@@ -50,7 +51,7 @@ readArchive (Storage store) archiveRef f = do
                              $ events
   f eventStream
 
-getUnarchivedEventCount :: Storage e -> IO Int
+getUnarchivedEventCount :: Storage i e -> IO Int
 getUnarchivedEventCount (Storage store) = atomically getCurrentEventCount
   where
     getCurrentEventCount :: STM Int
@@ -58,7 +59,7 @@ getUnarchivedEventCount (Storage store) = atomically getCurrentEventCount
       events <- fmap msEvents $ readTVar store
       return $ S.length $ S.filter inCurrentArchive events
 
-archiveEvents :: Storage e -> IO UUID -> Int -> IO (Maybe UUID)
+archiveEvents :: forall i e . Storage i e -> IO UUID -> Int -> IO (Maybe UUID)
 archiveEvents (Storage store) uuidSupply archiveSize =
     if (archiveSize > 0) then
       do
@@ -100,7 +101,7 @@ archiveEvents (Storage store) uuidSupply archiveSize =
         writeTVar store $ memoryStorage { msArchives = archives''
                                         , msEvents = events' }
 
-    archive :: Int -> UUID -> Seq (Event e) -> Seq (Event e) -> (Seq (Event e), Seq (Event e))
+    archive :: Int -> UUID -> Seq (Event i e) -> Seq (Event i e) -> (Seq (Event i e), Seq (Event i e))
     archive 0 _            archivedEvents unarchivedEvents = (archivedEvents, unarchivedEvents)
     archive _ _            archivedEvents unarchivedEvents | S.null unarchivedEvents = (archivedEvents, unarchivedEvents)
     archive n newArchiveId archivedEvents unarchivedEvents =
@@ -112,7 +113,7 @@ archiveEvents (Storage store) uuidSupply archiveSize =
         archive (n - 1) newArchiveId (archivedEvents |> archivedEvent) unarchivedEvents'
 
 -- | Create a memory-backed archive store.
-newArchiveStore :: Show e => IO UUID -> Storage e -> IO (ArchiveStore e)
+newArchiveStore :: Show e => IO UUID -> Storage i e -> IO (ArchiveStore i e)
 newArchiveStore uuidSupply storage = do
   return $ ArchiveStore
     { asGetUnarchivedEventCount = getUnarchivedEventCount storage

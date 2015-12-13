@@ -8,7 +8,6 @@ module Data.CQRS.Command
     , CommandT
     , createAggregate
     , execCommandT
-    , freshUUID
     , publishEvent
     , readAggregate
     , runCommandT
@@ -32,24 +31,23 @@ import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.SnapshotStore
 import           Data.Foldable (forM_)
 import           Data.Maybe (fromJust)
-import           Data.UUID.Types (UUID)
 import qualified System.IO.Streams.Combinators as SC
 
 -- | Command monad transformer.
-newtype CommandT a e m b = CommandT { unCommandT :: CommandM a e m b }
+newtype CommandT i a e m b = CommandT { unCommandT :: CommandM i a e m b }
     deriving (Functor, Applicative, Monad)
 
-instance MonadTrans (CommandT a e) where
+instance MonadTrans (CommandT i a e) where
   lift m = CommandT $ lift m
 
-instance MonadIO m => MonadIO (CommandT a e m) where
+instance MonadIO m => MonadIO (CommandT i a e m) where
     liftIO m = CommandT $ liftIO m
 
 -- | Command monad. This is just a reader to provide ambient access to the Repository.
-type CommandM a e = ReaderT (Command a e)
+type CommandM i a e = ReaderT (Command i a e)
 
-data Command a e =
-    Command { commandRepository :: Repository a e
+data Command i a e =
+    Command { commandRepository :: Repository i a e
             }
 
 -- | Unit of work monad transformer.
@@ -70,21 +68,15 @@ data UnitOfWork a e =
               }
 
 -- | Run a command against a repository.
-runCommandT :: (MonadIO m) => Repository a e -> CommandT a e m b -> m b
+runCommandT :: (MonadIO m) => Repository i a e -> CommandT i a e m b -> m b
 runCommandT repository (CommandT command) = runReaderT command $ Command repository
 
 -- | Run a command against a repository, ignoring the result.
-execCommandT :: (MonadIO m) => Repository a e -> CommandT a e m b -> m ()
+execCommandT :: (MonadIO m) => Repository i a e -> CommandT i a e m b -> m ()
 execCommandT repository = void . runCommandT repository
 
--- | Create a fresh UUID from the repository.
-freshUUID :: (MonadIO m) => CommandT a e m UUID
-freshUUID = CommandT $ do
-  repository <- liftM commandRepository ask
-  liftIO $ repositoryUUIDSupply repository
-
 -- Write out all the changes for a given aggregate.
-writeChanges :: (MonadIO m) => UUID -> Aggregate a e -> CommandT a e m ()
+writeChanges :: (MonadIO m) => i -> Aggregate a e -> CommandT i a e m ()
 writeChanges aggregateId aggregate = CommandT $ do
   repository <- liftM commandRepository ask
   let snapshotStore = repositorySnapshotStore repository
@@ -92,8 +84,7 @@ writeChanges aggregateId aggregate = CommandT $ do
   let publishEvents = repositoryPublishEvents repository
   -- Convert all the accumulated events to PersistedEvent
   versionedEvents <- forM (A.versionedEvents aggregate) $ \(v, e) -> do
-    i <- liftIO $ repositoryUUIDSupply repository
-    return $ PersistedEvent e v i
+    return $ PersistedEvent e v
   -- We only care if new events were generated
   when (length versionedEvents > 0) $ do
     -- Commit events to event store.
@@ -115,7 +106,7 @@ writeChanges aggregateId aggregate = CommandT $ do
           Nothing
 
 -- Get the aggregateAction from the repository.
-getAggregateAction :: (Monad m) => CommandT a e m (AggregateAction a e)
+getAggregateAction :: (Monad m) => CommandT i a e m (AggregateAction a e)
 getAggregateAction = CommandT $ liftM (repositoryAggregateAction . commandRepository) ask
 
 -- | Create a new aggregate using the supplied unit of work. Throws a
@@ -125,7 +116,7 @@ getAggregateAction = CommandT $ liftM (repositoryAggregateAction . commandReposi
 -- in the unit of work that are lifted into the nested monad may be
 -- performed regardless. (This is due to optimistic concurrency
 -- control.)
-createAggregate :: (MonadIO m, Monad m) => UUID -> (UnitOfWorkT a e (CommandT a e m) (Maybe a) -> UnitOfWorkT a e (CommandT a e m) b) -> CommandT a e m b
+createAggregate :: (MonadIO m, Monad m) => i -> (UnitOfWorkT a e (CommandT i a e m) (Maybe a) -> UnitOfWorkT a e (CommandT i a e m) b) -> CommandT i a e m b
 createAggregate aggregateId unitOfWork = do
   -- We use an "empty" aggregate state as the starting point
   -- here. We'll automatically conflict when trying to save if there
@@ -153,7 +144,7 @@ createAggregate aggregateId unitOfWork = do
 -- END of the unit of work, and so any operations in the unit of work
 -- that are lifted into the nested monad may be performed
 -- regardless. (This is due to optimistic concurrency control.)
-updateAggregate :: (MonadIO m) => UUID -> (UnitOfWorkT a e (CommandT a e m) a -> UnitOfWorkT a e (CommandT a e m) b) -> CommandT a e m (Maybe b)
+updateAggregate :: (MonadIO m) => i -> (UnitOfWorkT a e (CommandT i a e m) a -> UnitOfWorkT a e (CommandT i a e m) b) -> CommandT i a e m (Maybe b)
 updateAggregate aggregateId unitOfWork = CommandT $ do
   aggregate <- getByIdFromEventStore aggregateId
   unCommandT $ case A.aggregateValue $ aggregate of
@@ -171,11 +162,11 @@ updateAggregate aggregateId unitOfWork = CommandT $ do
 -- | Read value of an aggregate if it exists. If any update needs to
 -- be performed on the aggregate, use of the 'getter' function (see
 -- 'createAggregate' and 'updateAggregate') should be preferred.
-readAggregate :: (MonadIO m) => UUID -> CommandT a e m (Maybe a)
+readAggregate :: (MonadIO m) => i -> CommandT i a e m (Maybe a)
 readAggregate = (flip updateAggregate) id
 
 -- Retrieve aggregate from event store.
-getByIdFromEventStore :: (MonadIO m) => UUID -> CommandM a e m (Aggregate a e)
+getByIdFromEventStore :: (MonadIO m) => i -> CommandM i a e m (Aggregate a e)
 getByIdFromEventStore aggregateId = do
   r <- liftM commandRepository ask
   let es = repositoryEventStore r
@@ -189,6 +180,6 @@ getByIdFromEventStore aggregateId = do
   return a''
 
 -- | Publish event for the current aggregate.
-publishEvent :: (MonadIO m, NFData a, NFData e) => e -> UnitOfWorkT a e (CommandT a e m) ()
+publishEvent :: (MonadIO m, NFData a, NFData e) => e -> UnitOfWorkT a e (CommandT i a e m) ()
 publishEvent event = UnitOfWorkT $ do
   modify' (\s -> s { uowAggregate = A.publishEvent (uowAggregate s) event })

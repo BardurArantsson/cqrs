@@ -4,7 +4,7 @@ module Data.CQRS.Types.ArchiveStore
        , ArchiveMetadata(..)
        , ArchiveStore(..)
        , StoreError(..)
-       , applyIso
+       , transform
        , enumerateAllEvents
        , rotateArchives
        ) where
@@ -19,7 +19,7 @@ import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
 -- | ArchiveStore for events of type e.
-data ArchiveStore e = ArchiveStore {
+data ArchiveStore i e = ArchiveStore {
       -- | 'esGetUnarchivedEventCount` returns the number of currently
       -- unarchived events. Because other processes/threads may be
       -- accessing the event store concurrently, the returned value
@@ -47,23 +47,23 @@ data ArchiveStore e = ArchiveStore {
       -- the ordering of the returned events except that the events
       -- for any specific aggregate root are returned in order of
       -- incresing version number.
-      asReadArchive :: forall a . ArchiveRef -> (InputStream (UUID, PersistedEvent e) -> IO a) -> IO a
+      asReadArchive :: forall a . ArchiveRef -> (InputStream (i, PersistedEvent e) -> IO a) -> IO a
     }
 
--- | Transform an implementation of 'ArchiveStore a' to an
--- implementation of 'ArchiveStore b' via an isomorphism. This can be
--- used to add serialization/deserialization to event stores which do
--- not support storing anything other than binary data.
-applyIso :: forall e' e . (e' -> e, e -> e') -> ArchiveStore e -> ArchiveStore e'
-applyIso (_, g) (ArchiveStore getUnarchivedEventCount archiveEvents readLatestArchiveMetadata' readArchiveMetadata' readArchive') =
-    ArchiveStore getUnarchivedEventCount archiveEvents  readLatestArchiveMetadata' readArchiveMetadata' readArchive
+-- | Transform an archive store via an isomorphism for the events and
+-- and aggregate IDs. This can be used to add
+-- serialization/deserialization to event stores which do not support
+-- storing anything other than binary data.
+transform :: forall e e' i i' . (e' -> e, e -> e') -> (i' -> i, i -> i') -> ArchiveStore i e -> ArchiveStore i' e'
+transform (_, g) (_, gi) (ArchiveStore getUnarchivedEventCount archiveEvents readLatestArchiveMetadata' readArchiveMetadata' readArchive') =
+    ArchiveStore getUnarchivedEventCount archiveEvents readLatestArchiveMetadata' readArchiveMetadata' readArchive
   where
-    readArchive :: ArchiveRef -> (InputStream (UUID, PersistedEvent e') -> IO a) -> IO a
-    readArchive archiveRef p = readArchive' archiveRef $ SC.map (\(aggregateId, e) -> (aggregateId, fmap g e)) >=> p
+    readArchive :: ArchiveRef -> (InputStream (i', PersistedEvent e') -> IO a) -> IO a
+    readArchive archiveRef p = readArchive' archiveRef $ SC.map (\(i, e) -> (gi i, fmap g e)) >=> p
 
 -- | Enumerate all events in all archives. __This should ONLY be used
 -- for debugging purposes.__
-enumerateAllEvents :: ArchiveStore e -> (InputStream (UUID, PersistedEvent e) -> IO ()) -> IO ()
+enumerateAllEvents :: ArchiveStore i e -> (InputStream (i, PersistedEvent e) -> IO ()) -> IO ()
 enumerateAllEvents (ArchiveStore _ _ readLatestArchiveMetadata readArchiveMetadata readArchive) p =
   findFirstArchive >>= rollForward
   where
@@ -93,7 +93,7 @@ enumerateAllEvents (ArchiveStore _ _ readLatestArchiveMetadata readArchiveMetada
 -- | Perform event archival until the current number of unarchived
 -- events goes below the given 'archiveSize'. Does nothing if the
 -- given 'archiveSize' is not a positive number.
-rotateArchives :: ArchiveStore e -> Int -> IO ()
+rotateArchives :: ArchiveStore i e -> Int -> IO ()
 rotateArchives eventStore archiveSize =
     if archiveSize > 0 then
         loop

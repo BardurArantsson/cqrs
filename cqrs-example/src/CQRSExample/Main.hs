@@ -11,13 +11,13 @@ import           Data.CQRS.SnapshotStore (nullSnapshotStore)
 import qualified Data.CQRS.Repository as R
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.ArchiveStore (ArchiveStore, enumerateAllEvents)
-import           Data.UUID.Types (UUID)
 import           Network.Wai.EventSource (ServerEvent(..))
 import qualified System.IO.Streams as Streams
 import           System.IO.Streams (InputStream)
 import           System.Random (randomIO)
 import           Web.Scotty (scotty)
 
+import           CQRSExample.TaskId (TaskId)
 import           CQRSExample.AggregateAction (aggregateAction)
 import           CQRSExample.Events
 import           CQRSExample.Notifications
@@ -36,7 +36,7 @@ drain inputStream f = go
 
 
 -- Source of refresh events to the browser. Never returns.
-eventSourcingThread :: TVar QueryState -> ArchiveStore Event -> TChan ServerEvent -> TChan (UUID, [PersistedEvent Event]) -> IO ()
+eventSourcingThread :: TVar QueryState -> ArchiveStore TaskId Event -> TChan ServerEvent -> TChan (TaskId, [PersistedEvent Event]) -> IO ()
 eventSourcingThread qs archiveStore serverEvents publishedEvents = do
   -- Start two threads. One thread just periodically traverses the
   -- whole archive set once in a while. For production you would want
@@ -69,7 +69,7 @@ eventSourcingThread qs archiveStore serverEvents publishedEvents = do
         when (notifications /= mempty) $ do
           atomically $ C.writeTChan serverEvents $! toServerEvent $ notifications
 
-    processEvents :: UUID -> [PersistedEvent Event] -> IO ()
+    processEvents :: TaskId -> [PersistedEvent Event] -> IO ()
     processEvents aggregateId evs = do
       -- Supply to Query to update its state.
       runQuery qs $ reactToEvents aggregateId evs
@@ -95,7 +95,7 @@ startServing = do
 
   -- Create the resository
   let repositorySettings = R.setSnapshotFrequency 10 $ R.defaultSettings
-  let repository = R.newRepository repositorySettings aggregateAction eventStore nullSnapshotStore publishEvents randomIO
+  let repository = R.newRepository repositorySettings aggregateAction eventStore nullSnapshotStore publishEvents
 
   -- Start sourcing events.
   void $ forkIO $ do

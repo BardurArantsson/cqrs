@@ -5,10 +5,8 @@ module CQRSExample.Json
 
 import           Control.Concurrent.STM.TVar (TVar)
 import           Control.Monad (liftM)
-import           Data.Aeson (ToJSON, Value)
+import           Data.Aeson (ToJSON(..), Value)
 import           Data.Aeson.Types (object, Value(..))
-import           Data.Text.Encoding (decodeUtf8)
-import           Data.UUID.Types (toASCIIBytes)
 
 import           CQRSExample.Query
 
@@ -21,7 +19,7 @@ qTaskListJson :: TVar QueryState -> IO [Value]
 qTaskListJson qs = qListToJson qTaskList f qs
     where
       f (tid, title, state) =
-          object [ ("id", String $ decodeUtf8 $ toASCIIBytes tid)
+          object [ ("id", toJSON tid)
                  , ("title", String title)
                  , ("done", Bool $ isDone state) ]
       isDone QTaskOpen = False

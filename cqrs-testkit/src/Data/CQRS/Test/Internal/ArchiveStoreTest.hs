@@ -4,7 +4,7 @@ module Data.CQRS.Test.Internal.ArchiveStoreTest
     ) where
 
 import           Control.DeepSeq (NFData)
-import           Control.Monad (forM, forM_, replicateM)
+import           Control.Monad (forM_, replicateM)
 import           Control.Monad.Trans.Reader (ask)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
@@ -14,9 +14,9 @@ import           Data.CQRS.Types.ArchiveStore (ArchiveStore)
 import qualified Data.CQRS.Types.ArchiveStore as AS
 import           Data.CQRS.Types.EventStore (EventStore, esStoreEvents)
 import           Data.CQRS.Test.Internal.ArchiveStoreUtils (readAllEventsFromArchiveStore)
-import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, randomUUID, mkRunScope)
+import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
 import           Data.CQRS.Test.Internal.TestKitSettings
-import           Data.CQRS.Test.Internal.Utils (randomByteString, chunkRandomly)
+import           Data.CQRS.Test.Internal.Utils (randomId, randomByteString, chunkRandomly)
 import           Data.Function (on)
 import           Data.List (groupBy, sortBy)
 import           Data.UUID.Types (UUID)
@@ -27,14 +27,14 @@ import           Test.Hspec (Expectation, Spec, describe, shouldBe)
 import           Test.HUnit (assertBool)
 
 -- Ambient data for test scope for each spec.
-data Scope e = Scope { scopeArchiveStore :: ArchiveStore e
-                     , scopeEventStore :: EventStore e
-                     }
+data Scope i e = Scope { scopeArchiveStore :: ArchiveStore i e
+                       , scopeEventStore :: EventStore i e
+                       }
 
 -- | Assert that two event streams are observationally equivalent
 -- assuming that events may appear in any order wrt. aggregate ID, as
 -- long as they respect the sequence number ordering.
-shouldHaveEventsEquivalentTo :: (Eq e, Show e) => [(UUID, PersistedEvent e)] -> [(UUID, PersistedEvent e)] -> Expectation
+shouldHaveEventsEquivalentTo :: (Eq e, Show e, Show i, Ord i) => [(i, PersistedEvent e)] -> [(i, PersistedEvent e)] -> Expectation
 shouldHaveEventsEquivalentTo actualEvents expectedEvents =
     assertBool message (actualEvents' == expectedEvents')
   where
@@ -46,47 +46,46 @@ shouldHaveEventsEquivalentTo actualEvents expectedEvents =
 
 -- Generate a sequence of 'n' events. All the events are generated
 -- for the same aggregateId (which is chosen randomly).
-generateFixedNumberOfEvents :: Int -> IO [(UUID, PersistedEvent ByteString)]
+generateFixedNumberOfEvents :: Int -> IO [(ByteString, PersistedEvent ByteString)]
 generateFixedNumberOfEvents n = do
-  aggregateId <- R.randomIO
+  aggregateId <- randomId
   events <- replicateM n generateEvent
-  uuids <- replicateM n R.randomIO
-  let persistedEvents = map (\(e, s, u) -> PersistedEvent e s u) $ zip3 events [0..] uuids
+  let persistedEvents = map (\(e, s) -> PersistedEvent e s) $ zip events [0..]
   return $ zip (repeat aggregateId) persistedEvents
   where
     generateEvent :: IO ByteString
     generateEvent = randomByteString 8
 
 -- Store given events in exactly the order given.
-storeEvents :: UUID -> [PersistedEvent e] -> ScopeM (Scope e) ()
+storeEvents :: i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
 storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ (esStoreEvents eventStore) aggregateId events
 
-verifyArchives :: (Show e, Eq e) => Int -> [(UUID, PersistedEvent e)] -> ScopeM (Scope e) ()
+verifyArchives :: (Show e, Eq e, Show i, Ord i) => Int -> [(i, PersistedEvent e)] -> ScopeM (Scope i e) ()
 verifyArchives expectedArchiveCount expectedPersistedEvents = do
   (archiveCount, persistedEvents) <- readAllEventsFromArchiveStore scopeArchiveStore
   verify $ do
     archiveCount `shouldBe` expectedArchiveCount
     persistedEvents `shouldHaveEventsEquivalentTo` expectedPersistedEvents
 
-readArchive :: ArchiveRef -> ScopeM (Scope e) [(UUID, PersistedEvent e)]
+readArchive :: ArchiveRef -> ScopeM (Scope i e) [(i, PersistedEvent e)]
 readArchive archiveRef = do
   archiveStore <- fmap scopeArchiveStore ask
   liftIO $ (AS.asReadArchive archiveStore) archiveRef SL.toList
 
-archiveEvents :: Int -> ScopeM (Scope e) (Maybe UUID)
+archiveEvents :: Int -> ScopeM (Scope i e) (Maybe UUID)
 archiveEvents archiveSize = do
   archiveStore <- fmap scopeArchiveStore ask
   liftIO $ (AS.asArchiveEvents archiveStore) archiveSize
 
-rotateArchives :: Int -> ScopeM (Scope e) ()
+rotateArchives :: Int -> ScopeM (Scope i e) ()
 rotateArchives archiveSize = do
   archiveStore <- fmap scopeArchiveStore ask
   liftIO $ (AS.rotateArchives archiveStore) archiveSize
 
 -- Write out events from a given list in a randomized fashion.
-storeEventsRandomized :: [(UUID, PersistedEvent e)] -> ScopeM (Scope e) ()
+storeEventsRandomized :: (Eq i) => [(i, PersistedEvent e)] -> ScopeM (Scope i e) ()
 storeEventsRandomized events = do
     -- Chunk into random number of randomly sized batches.
     batches <- liftIO $ do
@@ -105,20 +104,17 @@ storeEventsRandomized events = do
 
 -- Given test kit settings, create the full spec for testing the
 -- archive store implementation against those settings.
-mkArchiveStoreSpec :: TestKitSettings a (ArchiveStore ByteString, EventStore ByteString) -> Spec
+mkArchiveStoreSpec :: TestKitSettings a (ArchiveStore ByteString ByteString, EventStore ByteString ByteString) -> Spec
 mkArchiveStoreSpec testKitSettings = do
 
   describe "ArchiveStore.enumerateAllEvents " $ do
 
     it "basic enumeration should work" $ do
       -- Setup
-      aggregateId <- randomUUID
-      eventId0 <- randomUUID
-      eventId1 <- randomUUID
-      eventId2 <- randomUUID
-      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0 eventId0)
-                           , (aggregateId, PersistedEvent "6" 1 eventId1)
-                           , (aggregateId, PersistedEvent "9" 2 eventId2)
+      aggregateId <- randomId
+      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0)
+                           , (aggregateId, PersistedEvent "6" 1)
+                           , (aggregateId, PersistedEvent "9" 2)
                            ]
       let expectedEvents' = map snd expectedEvents
       storeEvents aggregateId expectedEvents'
@@ -129,9 +125,9 @@ mkArchiveStoreSpec testKitSettings = do
 
     it "enumeration for multiple aggregates should work" $ do
       -- Setup
-      aggregateId0 <- randomUUID
-      aggregateId1 <- randomUUID
-      aggregateId2 <- randomUUID
+      aggregateId0 <- randomId
+      aggregateId1 <- randomId
+      aggregateId2 <- randomId
       gpes0_0 <- genEvents aggregateId0 4 0
       gpes1_0 <- genEvents aggregateId1 5 0
       gpes0_1 <- genEvents aggregateId0 3 (0 + length gpes0_0)
@@ -214,7 +210,7 @@ mkArchiveStoreSpec testKitSettings = do
       return $ Scope archiveStore eventStore
 
 -- Publish a sequence of events.
-publishEvents :: (NFData e, Show e) => UUID -> [PersistedEvent e] -> ScopeM (Scope e) ()
+publishEvents :: (NFData e, Show e) => i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
 publishEvents aggregateId pes = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ do
@@ -229,7 +225,7 @@ publishEvents aggregateId pes = do
       liftIO $ chunkRandomly n xs
 
 -- Generate and publish a series of events to an aggregate.
-genEvents :: UUID -> Int -> Int -> ScopeM (Scope ByteString) [(UUID, PersistedEvent ByteString)]
+genEvents :: i -> Int -> Int -> ScopeM (Scope i ByteString) [(i, PersistedEvent ByteString)]
 genEvents aggregateId n i0 = do
   pes <- liftIO $ genEvents'
   publishEvents aggregateId pes
@@ -238,7 +234,4 @@ genEvents aggregateId n i0 = do
     genEvents' :: IO [PersistedEvent ByteString]
     genEvents' = do
       es <- replicateM n $ randomByteString 8
-      pes <- forM (zip [0..] es) $ \(i, e) -> do
-               eventId <- R.randomIO
-               return $ PersistedEvent e (i0 + i) eventId
-      return pes
+      return $ map (\(i, e) -> PersistedEvent e (i0 + i)) (zip [0..] es)

@@ -2,7 +2,6 @@
 module CQRSExample.Aggregates
        ( newTask
        , Task(..)
-       , TaskId
        , TaskStatus(..)
        ) where
 
@@ -12,12 +11,7 @@ import           Data.Serialize (Serialize(..), getWord8, putWord8)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Typeable (Typeable)
-import           Data.UUID.Types (UUID)
 import           GHC.Generics (Generic)
-
--- Tasks.
-
-type TaskId = UUID
 
 data TaskStatus = TaskStatusOpen
                 | TaskStatusComplete

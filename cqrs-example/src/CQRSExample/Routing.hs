@@ -13,35 +13,25 @@ import           Control.Concurrent.STM.TVar (TVar)
 import           Data.Aeson.Types (ToJSON(..), Value(..))
 import qualified Data.Aeson.Encode as AE
 import           Data.CQRS.Command (Repository, runCommandT)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
-import qualified Data.Text.Lazy as TL
-import           Data.UUID.Types (UUID, fromASCIIBytes)
 import           Network.Wai.EventSource (ServerEvent(..))
 import           Network.Wai.EventSource.EventStream (eventToBuilder)
 import           Network.Wai.Middleware.Static (staticPolicy, addBase)
-import           Web.Scotty (ScottyM, get, stream, setHeader, post, json, middleware, param, redirect, Parsable(..))
+import           Web.Scotty (ScottyM, get, stream, setHeader, post, json, middleware, param, redirect)
 
 import           CQRSExample.Aggregates (Task)
 import qualified CQRSExample.Commands as C
 import           CQRSExample.Events
 import           CQRSExample.Json
 import           CQRSExample.Query (QueryState)
+import           CQRSExample.TaskId (TaskId)
 
 -- Convert a JSON value to a server event.
 toServerEvent :: ToJSON j => j -> ServerEvent
 toServerEvent j = ServerEvent Nothing Nothing builders
     where builders = [ fromLazyByteString $ AE.encode j ]
 
--- Need parsing for UUIDs
-instance Parsable UUID where
-    parseParam text =
-      case fromASCIIBytes $ TE.encodeUtf8 $ TL.toStrict text of
-        Just uuid -> Right uuid
-        Nothing -> Left "Could not parse UUID"
-
 -- Routes for the example application.
-routes :: TVar QueryState -> Repository Task Event -> TChan ServerEvent -> ScottyM ()
+routes :: TVar QueryState -> Repository TaskId Task Event -> TChan ServerEvent -> ScottyM ()
 routes qs repository serverEvents = do
   -- Middleware to serve static files
   middleware $ staticPolicy (addBase "static")
@@ -67,7 +57,7 @@ routes qs repository serverEvents = do
     json tasks
 
   post "/tasks" $ do
-    title <- fmap T.pack $ param "title"
+    title <- param "title"
     run $ C.createTask title
 
   -- Notifications

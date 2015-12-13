@@ -10,9 +10,8 @@ import           Control.DeepSeq (NFData)
 import           Control.Monad (void)
 import           Data.CQRS.Types.EventStore (EventStore(..))
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent)
-import           Data.CQRS.Types.SnapshotStore
+import           Data.CQRS.Types.SnapshotStore (SnapshotStore)
 import           Data.CQRS.Types.AggregateAction (AggregateAction)
-import           Data.UUID.Types (UUID)
 
 -- | Repository settings
 data Settings = Settings
@@ -37,18 +36,17 @@ setSnapshotFrequency n s = s { settingsSnapshotFrequency = n' }
            | otherwise = Just n
 
 -- | Repository consisting of an event store and an event bus.
-data Repository a e = Repository
+data Repository i a e = Repository
     { repositoryAggregateAction :: AggregateAction a e
-    , repositoryEventStore :: EventStore e
-    , repositorySnapshotStore :: SnapshotStore a
-    , repositoryPublishEvents :: (UUID, [PersistedEvent e]) -> IO ()
-    , repositoryUUIDSupply :: IO UUID
+    , repositoryEventStore :: EventStore i e
+    , repositorySnapshotStore :: SnapshotStore i a
+    , repositoryPublishEvents :: (i, [PersistedEvent e]) -> IO ()
     , repositorySettings :: Settings
     }
 
 -- | Create a repository from a pool of event store backends.
-newRepository :: (Show e, NFData e) => Settings -> AggregateAction a e -> EventStore e -> SnapshotStore a -> ((UUID, [PersistedEvent e]) -> IO r) -> IO UUID -> (Repository a e)
-newRepository settings aggregateAction eventStore snapshotStore publishEvents uuidSupply = do
-  Repository aggregateAction eventStore snapshotStore publishEvents' uuidSupply settings
+newRepository :: (Show e, NFData e) => Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> ((i, [PersistedEvent e]) -> IO r) -> Repository i a e
+newRepository settings aggregateAction eventStore snapshotStore publishEvents = do
+  Repository aggregateAction eventStore snapshotStore publishEvents' settings
   where
     publishEvents' inputStream = void $ publishEvents inputStream

@@ -22,7 +22,6 @@ import qualified Data.ByteString.Char8 as B8
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import           Data.ByteString.Lex.Integral (readDecimal)
-import           Data.ByteString.Lex.Double (readDouble)
 import           Data.Int (Int16, Int32, Int64)
 import           Data.Pool (Pool, withResource)
 import           Data.Text (Text)
@@ -44,7 +43,6 @@ data SqlValue = SqlByteArray (Maybe ByteString)
               | SqlInt16 (Maybe Int16)
               | SqlInt32 (Maybe Int32)
               | SqlInt64 (Maybe Int64)
-              | SqlFloating (Maybe Double)
               | SqlVarChar (Maybe Text)
               | SqlText (Maybe Text)
               | SqlUUID (Maybe UUID)
@@ -121,8 +119,6 @@ toSqlValue (oid, mvalue) =
     Oid 21 -> c (return . fmap fst . readDecimal) SqlInt16
     Oid 23 -> c (return . fmap fst . readDecimal) SqlInt32
     Oid 25 -> c (return . either (const Nothing) Just . decodeUtf8') SqlText
-    Oid 700 -> c (return . fmap fst . readDouble) SqlFloating
-    Oid 701 -> c (return . fmap fst . readDouble) SqlFloating
     Oid 1042 -> c (return . Just) SqlBlankPaddedString
     Oid 1043 -> c (return . either (const Nothing) Just . decodeUtf8') SqlVarChar
     Oid 2950 -> c (return . U.fromASCIIBytes) SqlUUID

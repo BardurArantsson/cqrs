@@ -19,15 +19,15 @@ data EventStore i e = EventStore {
       -- errors or conflicts).
       esStoreEvents :: i -> [PersistedEvent e] -> IO ()
     ,
-      -- | Process sequence of events associated with the aggregate
-      -- identified by the given UUID. Only events at or after the
-      -- given version number are supplied by the input stream. The
-      -- events are supplied in increasing order of version number.
+      -- | Process sequence of events associated with the given aggregate.
+      -- Only events at or after the given version number are supplied
+      -- by the input stream. The events are supplied in increasing
+      -- order of version number.
       esRetrieveEvents :: forall a . i -> Int -> (InputStream (PersistedEvent e) -> IO a) -> IO a
     ,
       -- | Read all events from the event store. Events will be
       -- returned in order of increasing version number, grouped by
-      -- aggregate UUID. __This function should ONLY be used for
+      -- aggregate ID. __This function should ONLY be used for
       -- debugging purposes.__
       esRetrieveAllEvents :: forall a . (InputStream (i, PersistedEvent e) -> IO a) -> IO a
     }

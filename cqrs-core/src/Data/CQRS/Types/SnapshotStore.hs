@@ -15,8 +15,8 @@ data SnapshotStore i a = SnapshotStore
       -- existing snapshot version numbers).
       ssWriteSnapshot :: i -> Snapshot a -> IO ()
     ,
-      -- | Read latest snapshot of an aggregate identified by UUID. A
-      -- snapshot store is permitted to return 'Nothing' in all cases.
+      -- | Read latest snapshot of an aggregate. Snapshot stores are
+      -- permitted to return 'Nothing' in all cases.
       ssReadSnapshot :: i -> IO (Maybe (Snapshot a))
     }
 

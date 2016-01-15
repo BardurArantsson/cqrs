@@ -1,22 +1,25 @@
-{-# LANGUAGE BangPatterns, DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, DeriveGeneric, OverloadedStrings, GeneralizedNewtypeDeriving #-}
 module Data.CQRS.PostgreSQL.Internal.Utils
        ( SqlValue(..)
+       , Transaction
        , QueryError(..)
        , badQueryResultMsg
        , execSql
        , execSql'
-       , ioQuery
-       , ioQuery'
+       , query
        , isDuplicateKey
-       , runQuery
-       , withTransaction
+       , runQuery         -- For test use only
+       , runTransaction
+       , runTransactionP
        ) where
 
 import           Control.DeepSeq (NFData(..), ($!!))
 import           Control.Exception (Exception, throw)
 import           Control.Exception.Enclosed (catchAny)
-import           Control.Monad (forM)
-import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad (forM, void)
+import           Control.Monad.IO.Class (liftIO, MonadIO)
+import           Control.Monad.Trans.Class (lift)
+import           Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
 import           Control.Exception (SomeException, bracket)
 import qualified Data.ByteString.Char8 as B8
 import           Data.ByteString (ByteString)
@@ -54,14 +57,18 @@ isDuplicateKey :: QueryError -> Maybe ()
 isDuplicateKey qe | qeSqlState qe == Just "23505" = Just ()
                   | otherwise                     = Nothing
 
--- | Execute an IO action with an active transaction.
-withTransaction :: Connection -> IO a -> IO a
-withTransaction connection action = do
+-- | Transaction in PostgreSQL.
+newtype Transaction a = Transaction (ReaderT Connection IO a)
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+-- | Run transaction
+runTransaction :: Connection -> Transaction a -> IO a
+runTransaction connection transaction = do
   begin
   catchAny runAction tryRollback
   where
     runAction = do
-      r <- action
+      r <- doRunTransaction connection transaction
       commit
       return r
 
@@ -74,9 +81,23 @@ withTransaction connection action = do
           -- pool).
           throw e
 
-    begin = execSql connection "START TRANSACTION;" [ ]
-    commit = execSql connection "COMMIT TRANSACTION;" [ ]
-    rollback = execSql connection "ROLLBACK TRANSACTION;" [ ]
+    begin = run "START TRANSACTION;" [ ]
+    commit = run "COMMIT TRANSACTION;" [ ]
+    rollback = run "ROLLBACK TRANSACTION;" [ ]
+
+    run sql parameters =
+      queryImpl connection sql parameters (\_ _ -> return ())
+
+-- | Perform the actions inside a Transaction on a connection WITHOUT
+-- wrapping in any TRANSACTION statements.
+doRunTransaction :: Connection -> Transaction a -> IO a
+doRunTransaction connection (Transaction t) = do
+  runReaderT t connection
+
+-- | Run a transaction with a connection from the given resource pool
+-- and return the connection when the transaction ends.
+runTransactionP :: Pool Connection -> Transaction a -> IO a
+runTransactionP pool action = withResource pool $ (flip runTransaction) action
 
 -- | Read a boolean.
 readBoolean :: ByteString -> Maybe Bool
@@ -136,14 +157,12 @@ toSqlValue (oid, mvalue) =
             Just _  -> return $ construct mvalue'
 
 -- | Execute a query with no result.
-execSql :: Connection -> ByteString -> [SqlValue] -> IO ()
-execSql connection sql parameters =
-  ioQuery connection sql parameters (\_ -> return ())
+execSql :: ByteString -> [SqlValue] -> Transaction ()
+execSql sql parameters = void $ execSql' sql parameters
 
 -- | Execute a query an return the number of updated rows (if available).
-execSql' :: Connection -> ByteString -> [SqlValue] -> IO (Maybe Int)
-execSql' connection sql parameters =
-  ioQuery' connection sql parameters (\n _ -> return n)
+execSql' :: ByteString -> [SqlValue] -> Transaction (Maybe Int)
+execSql' sql parameters = query' sql parameters (\n _ -> return n)
 
 -- | Error happened during query.
 data QueryError = QueryError
@@ -158,14 +177,16 @@ instance NFData QueryError
 
 -- | Run a query and fold over the results. The action receives an
 -- 'InputStream' over all the rows in the result.
-ioQuery :: Connection -> ByteString -> [SqlValue] -> (InputStream [SqlValue] -> IO a) -> IO a
-ioQuery connection sql parameters f =
-    ioQuery' connection sql parameters $ \_ is -> f is
+query :: ByteString -> [SqlValue] -> (InputStream [SqlValue] -> Transaction a) -> Transaction a
+query sql parameters f = query' sql parameters $ \_ is -> f is
 
--- | Run a query and fold over the results. The action receives the number of rows affected
--- and an 'InputStream' over all the rows in the result.
-ioQuery' :: Connection -> ByteString -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> IO a) -> IO a
-ioQuery' connection sql parameters f =
+query' :: ByteString -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> Transaction a) -> Transaction a
+query' sql parameters f = Transaction $ do
+  connection <- ask
+  lift $ queryImpl connection sql parameters (\n is -> doRunTransaction connection (f n is))
+
+queryImpl :: Connection -> ByteString -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> IO a) -> IO a
+queryImpl connection sql parameters f =
   bracket open done $ \r -> do
     -- Check the status
     status <- P.resultStatus r
@@ -222,10 +243,8 @@ ioQuery' connection sql parameters f =
       toSqlValue (typ,mval)
 
 -- Run a query and result a list of the rows in the result.
-runQuery :: Pool Connection -> ByteString -> [SqlValue] -> IO [[SqlValue]]
-runQuery connectionPool sql parameters =
-  withResource connectionPool $ \c -> do
-    ioQuery c sql parameters (\inputStream -> SL.toList inputStream)
+runQuery :: ByteString -> [SqlValue] -> Transaction [[SqlValue]]
+runQuery sql parameters = query sql parameters (liftIO . SL.toList)
 
 -- | Format a message indicating a bad query result due to the "shape".
 badQueryResultMsg :: [String] -> [SqlValue] -> String

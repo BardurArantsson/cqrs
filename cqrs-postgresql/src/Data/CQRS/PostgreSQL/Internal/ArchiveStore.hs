@@ -3,13 +3,13 @@ module Data.CQRS.PostgreSQL.Internal.ArchiveStore
     ( newArchiveStore
     ) where
 
-import           Control.Monad ((>=>))
+import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
-import           Data.Pool (Pool, withResource)
+import           Data.Pool (Pool)
 import           Data.CQRS.Types.ArchiveRef (ArchiveRef(..))
 import           Data.CQRS.Types.ArchiveStore (ArchiveStore(..), ArchiveMetadata(..))
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
-import           Data.CQRS.PostgreSQL.Internal.Utils (execSql, ioQuery, SqlValue(..), withTransaction, badQueryResultMsg)
+import           Data.CQRS.PostgreSQL.Internal.Utils (execSql, query, SqlValue(..), runTransactionP, badQueryResultMsg)
 import           Data.UUID.Types (UUID)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           System.IO.Streams (InputStream)
@@ -28,9 +28,9 @@ unpackArchiveMetadata columns =
   error $ badQueryResultMsg [ ] columns
 
 getUnarchivedEventCount :: Pool Connection -> IO Int
-getUnarchivedEventCount cp = withResource cp $ \c -> do
-    maybeCount <- withTransaction c $ do
-      ioQuery c sqlUnarchivedCount [ ] $ SC.map unpackCount >=> Streams.read
+getUnarchivedEventCount cp = runTransactionP cp $ do
+    maybeCount <- query sqlUnarchivedCount [ ] $ \is ->
+      (liftIO $ SC.map unpackCount is) >>= (liftIO . Streams.read)
     case maybeCount of
       Nothing ->
         error "Query error counting number of unarchived events"
@@ -49,16 +49,15 @@ getUnarchivedEventCount cp = withResource cp $ \c -> do
 archiveEvents :: Pool Connection -> IO UUID -> Int -> IO (Maybe UUID)
 archiveEvents cp uuidSupply archiveSize =
   if (archiveSize > 0) then
-      withResource cp $ \c -> do
-        withTransaction c $ do
-          archiveId <- uuidSupply
-          -- Create new archive
-          execSql c sqlInsertNewCurrentArchive [ SqlUUID $ Just archiveId ]
-          execSql c sqlUpdatePreviousCurrentArchive [ ]
-          -- Move <archiveSize> events which don't have an archive into the new archive
-          execSql c sqlFillNextArchive [ SqlUUID $ Just archiveId, SqlInt32 $ Just $ fromIntegral archiveSize ]
-          -- Return its ID
-          return $ Just archiveId
+      runTransactionP cp $ do
+        archiveId <- liftIO $ uuidSupply
+        -- Create new archive
+        execSql sqlInsertNewCurrentArchive [ SqlUUID $ Just archiveId ]
+        execSql sqlUpdatePreviousCurrentArchive [ ]
+        -- Move <archiveSize> events which don't have an archive into the new archive
+        execSql sqlFillNextArchive [ SqlUUID $ Just archiveId, SqlInt32 $ Just $ fromIntegral archiveSize ]
+        -- Return its ID
+        return $ Just archiveId
     else
       return Nothing
 
@@ -98,8 +97,9 @@ archiveEvents cp uuidSupply archiveSize =
 
 readLatestArchiveMetadata :: Pool Connection -> IO (Maybe ArchiveMetadata)
 readLatestArchiveMetadata cp =
-    withResource cp $ \c -> withTransaction c $ do
-      ioQuery c sqlReadLatestArchiveMetadata [ ] $ SC.map unpackArchiveMetadata >=> Streams.read
+    runTransactionP cp $ do
+      query sqlReadLatestArchiveMetadata [ ] $ \is ->
+        (liftIO $ SC.map unpackArchiveMetadata is) >>= (liftIO . Streams.read)
     where
       sqlReadLatestArchiveMetadata =
          "SELECT archive_uuid, prev_archive_uuid, next_archive_uuid \
@@ -108,8 +108,9 @@ readLatestArchiveMetadata cp =
 
 readArchiveMetadata :: Pool Connection -> UUID -> IO (Maybe ArchiveMetadata)
 readArchiveMetadata cp archiveId =
-    withResource cp $ \c -> withTransaction c $ do
-      ioQuery c sqlReadArchiveMetadata [ SqlUUID $ Just archiveId ] $ SC.map unpackArchiveMetadata >=> Streams.read
+    runTransactionP cp $ do
+      query sqlReadArchiveMetadata [ SqlUUID $ Just archiveId ] $ \is ->
+        (liftIO $ SC.map unpackArchiveMetadata is) >>= (liftIO . Streams.read)
     where
       sqlReadArchiveMetadata =
           "SELECT archive_uuid, prev_archive_uuid, next_archive_uuid \
@@ -118,15 +119,16 @@ readArchiveMetadata cp archiveId =
 
 readArchive :: Pool Connection -> ArchiveRef -> (InputStream (ByteString, PersistedEvent ByteString) -> IO a) -> IO a
 readArchive cp archiveRef p =
-  withResource cp $ \c -> withTransaction c $ do
-    query c archiveRef $ SC.map unpack >=> p
+  runTransactionP cp $ do
+    querySql archiveRef $ \is ->
+      (liftIO $ SC.map unpack is) >>= (liftIO . p)
   where
     -- We use two different queries rather than using "IS NOT DISTINCT
     -- FROM" because the query optimization engine in some (all?)
     -- PostgreSQL versions has a lot of trouble optimizing this and
     -- will do table scans.
-    query c CurrentArchive           = ioQuery c sqlReadArchiveCurrent [ ]
-    query c (NamedArchive archiveId) = ioQuery c sqlReadArchiveNamed [ SqlUUID $ Just archiveId ]
+    querySql CurrentArchive           = query sqlReadArchiveCurrent [ ]
+    querySql (NamedArchive archiveId) = query sqlReadArchiveNamed [ SqlUUID $ Just archiveId ]
     -- Unpack result columns
     unpack [ SqlByteArray (Just aggregateId)
            , SqlByteArray (Just eventData)

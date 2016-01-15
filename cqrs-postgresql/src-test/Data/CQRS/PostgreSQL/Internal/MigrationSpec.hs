@@ -4,8 +4,9 @@ module Data.CQRS.PostgreSQL.Internal.MigrationSpec
     ) where
 
 import           Control.Exception (bracket)
+import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
-import           Data.CQRS.PostgreSQL.Internal.Utils (runQuery)
+import           Data.CQRS.PostgreSQL.Internal.Utils (runQuery, runTransactionP)
 import           Data.CQRS.PostgreSQL.Internal.Migration (applyMigrations, uuid)
 import           Data.Pool (Pool, withResource, destroyAllResources)
 import           Data.UUID.Types (UUID)
@@ -69,8 +70,9 @@ mkApplyMigrationsSpec mkConnectionPool = do
       bracket mkConnectionPool destroyAllResources spec
 
     assertValidQuery connectionPool sql = do
-      rows <- runQuery connectionPool sql []
-      rows `shouldSatisfy` (\rs -> length rs >= 0) -- Don't care about size of result, just that query succeeded
+      runTransactionP connectionPool $ do
+        rows <- runQuery sql []
+        liftIO $ rows `shouldSatisfy` (\rs -> length rs >= 0) -- Don't care about size of result, just that query succeeded
 
     createXSql = "CREATE TABLE X (A INT)"
     createYSql = "CREATE TABLE Y (B INT)"

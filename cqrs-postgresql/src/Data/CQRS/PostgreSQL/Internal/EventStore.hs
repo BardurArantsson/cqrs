@@ -4,12 +4,13 @@ module Data.CQRS.PostgreSQL.Internal.EventStore
        ) where
 
 import           Control.Exception (throw, catchJust)
-import           Control.Monad (forM_, (>=>))
+import           Control.Monad (forM_)
+import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
-import           Data.Pool (Pool, withResource)
+import           Data.Pool (Pool)
 import           Data.CQRS.Types.EventStore (EventStore(..), StoreError(..))
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
-import           Data.CQRS.PostgreSQL.Internal.Utils (execSql, ioQuery, SqlValue(..), isDuplicateKey, withTransaction, badQueryResultMsg)
+import           Data.CQRS.PostgreSQL.Internal.Utils (execSql, query, SqlValue(..), isDuplicateKey, runTransactionP, badQueryResultMsg)
 import           Data.Time.Clock.POSIX (getPOSIXTime)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           System.IO.Streams (InputStream)
@@ -33,19 +34,18 @@ import qualified System.IO.Streams.Combinators as SC
 -- permit it, even if the events were inserts.
 storeEvents :: Pool Connection -> ByteString -> [PersistedEvent ByteString] -> IO ()
 storeEvents cp aggregateId es = do
-  withResource cp $ \c -> do
-    translateExceptions aggregateId $ do
-      withTransaction c $ do
-        forM_ es $ \e -> do
-          -- Add a timestamp for informational purposes.
-          timestamp <- fmap (\t -> round $ t * 1000) $ getPOSIXTime
-          -- Insert
-          execSql c sqlInsertEvent
-            [ SqlByteArray $ Just aggregateId
-            , SqlByteArray $ Just $ peEvent e
-            , SqlInt32 $ Just $ fromIntegral $ peSequenceNumber e
-            , SqlInt64 $ Just $ timestamp
-            ]
+  translateExceptions aggregateId $ do
+    runTransactionP cp $ do
+      forM_ es $ \e -> do
+        -- Add a timestamp for informational purposes.
+        timestamp <- liftIO $ fmap (\t -> round $ t * 1000) $ getPOSIXTime
+        -- Insert
+        execSql sqlInsertEvent
+          [ SqlByteArray $ Just aggregateId
+          , SqlByteArray $ Just $ peEvent e
+          , SqlInt32 $ Just $ fromIntegral $ peSequenceNumber e
+          , SqlInt64 $ Just $ timestamp
+          ]
 
   where
     -- Translate duplicate key exceptions into StoreError.
@@ -63,10 +63,13 @@ storeEvents cp aggregateId es = do
       \) VALUES ($1, $2, $3, $4, NULL)"
 
 retrieveEvents :: Pool Connection -> ByteString -> Int -> (InputStream (PersistedEvent ByteString) -> IO a) -> IO a
-retrieveEvents cp aggregateId v0 f = withResource cp $ \c -> withTransaction c $ do
-  ioQuery c sqlSelectEvent [ SqlByteArray $ Just aggregateId
-                           , SqlInt32 $ Just $ fromIntegral v0
-                           ] $ SC.map unpack >=> f
+retrieveEvents cp aggregateId v0 f =
+   runTransactionP cp $ do
+     let params = [ SqlByteArray $ Just aggregateId
+                  , SqlInt32 $ Just $ fromIntegral v0
+                  ]
+     query sqlSelectEvent params $ \is ->
+       (liftIO $ SC.map unpack is) >>= (liftIO . f)
   where
     unpack [ SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
@@ -81,8 +84,10 @@ retrieveEvents cp aggregateId v0 f = withResource cp $ \c -> withTransaction c $
         \ORDER BY seq_no ASC"
 
 retrieveAllEvents :: Pool Connection -> (InputStream (ByteString, PersistedEvent ByteString) -> IO a) -> IO a
-retrieveAllEvents cp f = withResource cp $ \c -> withTransaction c $ do
-  ioQuery c sqlSelectAllEvents [ ] $ SC.map unpack >=> f
+retrieveAllEvents cp f =
+  runTransactionP cp $ do
+    query sqlSelectAllEvents [ ] $ \is ->
+      (liftIO $ SC.map unpack is) >>= (liftIO . f)
   where
     unpack [ SqlByteArray (Just aggregateId)
            , SqlInt32 (Just sequenceNumber)

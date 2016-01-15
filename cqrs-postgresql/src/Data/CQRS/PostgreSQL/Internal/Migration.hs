@@ -4,9 +4,10 @@ module Data.CQRS.PostgreSQL.Internal.Migration
     , uuid
     ) where
 
-import           Control.Monad (forM_, (>=>))
+import           Control.Monad (forM_)
+import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
-import           Data.CQRS.PostgreSQL.Internal.Utils (badQueryResultMsg, execSql, ioQuery, withTransaction, SqlValue(..))
+import           Data.CQRS.PostgreSQL.Internal.Utils (badQueryResultMsg, execSql, query, runTransaction, SqlValue(..))
 import           Data.UUID.Types (UUID)
 import qualified Data.UUID.Types as U
 import           Data.Text.Encoding (decodeUtf8)
@@ -27,15 +28,15 @@ uuid s =
 applyMigrations :: Connection -> [(UUID, ByteString)] -> IO ()
 applyMigrations c migrations = do
   -- Must always create the change log if necessary
-  withTransaction c $ execSql c sqlCreateChangeSetTbl [ ]
+  runTransaction c $ execSql sqlCreateChangeSetTbl [ ]
   -- Apply all the migrations.
   forM_ migrations $ \(changeSetId, sql) -> do
     let changeSetIdSql = SqlUUID $ Just changeSetId
     let sqlText = decodeUtf8 sql
-    withTransaction c $ do
+    runTransaction c $ do
       -- Check if change set has already been applied
-      existingChangeSet <- ioQuery c sqlFindChangeSet [ changeSetIdSql ] $
-                             SC.map (unpackChangeSet changeSetId) >=> Streams.read
+      existingChangeSet <- query sqlFindChangeSet [ changeSetIdSql ] $
+        liftIO . extractChangeSet changeSetId
       case existingChangeSet of
         Just (_, sqlText') | sqlText == sqlText' ->
           return () -- Already applied, do nothing
@@ -43,10 +44,13 @@ applyMigrations c migrations = do
           -- Applied, but SQL doesn't match. That's a huge problem, so we'll error out.
           error $ "Migration error: Changeset SQL modified: UUID " ++ show changeSetId
         Nothing -> do
-          execSql c sqlInsertChangeSet [ changeSetIdSql, SqlText $ Just sqlText ]
-          execSql c sql [ ]
+          execSql sqlInsertChangeSet [ changeSetIdSql, SqlText $ Just sqlText ]
+          execSql sql [ ]
 
   where
+
+    extractChangeSet changeSetId i = SC.map (unpackChangeSet changeSetId) i >>= Streams.read
+
     unpackChangeSet _ [ SqlUUID (Just changeSetId), SqlText (Just sqlText) ] = (changeSetId, sqlText)
     unpackChangeSet changeSetId columns = error $ badQueryResultMsg [show changeSetId] columns
 

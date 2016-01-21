@@ -4,16 +4,16 @@ module Data.CQRS.PostgreSQL.Migrations
     ) where
 
 import           Database.PostgreSQL.LibPQ (Connection)
-import           Data.CQRS.PostgreSQL.Internal.Migration (applyMigrations, uuid)
+import           Data.CQRS.PostgreSQL.Internal.Migration (applyMigrations)
 
 -- | Apply all the necessary migrations to use any subset of the CQRS
 -- functionality.
 migrate :: Connection -> IO ()
 migrate connection =
   applyMigrations connection
-    [ (uuid "d0bf19c5-6bca-4bb0-8dd8-8e1340ec7503", sqlCreateEventTbl)
-    , (uuid "1bbd4b4c-db0c-445c-90dd-19f7b725cac4", sqlCreateLogicalTimestampIdx)
-    , (uuid "c7258b1c-bc3c-467a-bc1f-f63ad330651f", sqlCreateSnapshotTbl)
+    [ ("d0bf19c5-6bca-4bb0-8dd8-8e1340ec7503", sqlCreateEventTbl)
+    , ("1bbd4b4c-db0c-445c-90dd-19f7b725cac4", sqlCreateLogicalTimestampIdx)
+    , ("c7258b1c-bc3c-467a-bc1f-f63ad330651f", sqlCreateSnapshotTbl)
     ]
   where
     sqlCreateEventTbl =

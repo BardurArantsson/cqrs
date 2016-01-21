@@ -28,8 +28,6 @@ import           Data.Pool (Pool, withResource)
 import           Data.Text (Text)
 import           Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import           Data.Typeable (Typeable)
-import           Data.UUID.Types (UUID)
-import qualified Data.UUID.Types as U
 import           Database.PostgreSQL.LibPQ (Connection, Oid(..), Format(..), ExecStatus(..), Column(..), Row(..), FieldCode(..))
 import qualified Database.PostgreSQL.LibPQ as P
 import           GHC.Generics (Generic)
@@ -46,7 +44,6 @@ data SqlValue = SqlByteArray (Maybe ByteString)
               | SqlInt64 (Maybe Int64)
               | SqlVarChar (Maybe Text)
               | SqlText (Maybe Text)
-              | SqlUUID (Maybe UUID)
               | Unmatched (Oid, Maybe ByteString)
               deriving (Eq, Show)
 
@@ -124,8 +121,6 @@ fromSqlValue _ (SqlVarChar Nothing) = return Nothing
 fromSqlValue _ (SqlVarChar (Just t)) = return $ Just (Oid 1043, encodeUtf8 t, Binary)
 fromSqlValue _ (SqlText Nothing) = return Nothing
 fromSqlValue _ (SqlText (Just t)) = return $ Just (Oid 25, encodeUtf8 t, Text)
-fromSqlValue _ (SqlUUID Nothing) = return Nothing
-fromSqlValue _ (SqlUUID (Just u)) = return $ Just (Oid 2950, U.toASCIIBytes u, Text)
 fromSqlValue _ _ = error "fromSqlValue: Parameter conversion failed"
 
 -- | Map field to an SqlValue.
@@ -140,7 +135,6 @@ toSqlValue (oid, mvalue) =
     Oid 25 -> c (return . either (const Nothing) Just . decodeUtf8') SqlText
     Oid 1042 -> c (return . Just) SqlBlankPaddedString
     Oid 1043 -> c (return . either (const Nothing) Just . decodeUtf8') SqlVarChar
-    Oid 2950 -> c (return . U.fromASCIIBytes) SqlUUID
 
     _ -> return $ Unmatched (oid,mvalue)
   where

@@ -13,17 +13,15 @@ module Data.CQRS.PostgreSQL.Internal.Utils
        , runTransactionP
        ) where
 
-import           Control.DeepSeq (NFData(..), ($!!))
 import           Control.Exception (Exception, throw)
 import           Control.Exception.Enclosed (catchAny)
 import           Control.Monad (forM, void)
 import           Control.Monad.IO.Class (liftIO, MonadIO)
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
-import           Control.Exception (SomeException, bracket)
+import           Control.Exception (SomeException)
 import qualified Data.ByteString.Char8 as B8
 import           Data.ByteString (ByteString)
-import qualified Data.ByteString as B
 import           Data.ByteString.Lex.Integral (readDecimal)
 import           Data.Int (Int16, Int32, Int64)
 import           Data.Pool (Pool, withResource)
@@ -173,8 +171,6 @@ data QueryError = QueryError
 
 instance Exception QueryError
 
-instance NFData QueryError
-
 -- | Run a query and fold over the results. The action receives an
 -- 'InputStream' over all the rows in the result.
 query :: ByteString -> [SqlValue] -> (InputStream [SqlValue] -> Transaction a) -> Transaction a
@@ -186,38 +182,34 @@ query' sql parameters f = Transaction $ do
   lift $ queryImpl connection sql parameters (\n is -> doRunTransaction connection (f n is))
 
 queryImpl :: Connection -> ByteString -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> IO a) -> IO a
-queryImpl connection sql parameters f =
-  bracket open done $ \r -> do
-    -- Check the status
-    status <- P.resultStatus r
-    case status of
-      CommandOk -> do
-        n <- affectedRows r
-        go r >>= f n
-      TuplesOk  -> do
-        n <- affectedRows r
-        go r >>= f n
-      _ -> do
-        -- Extract error information. We need to be careful to
-        -- COPY the values here since freeing the result will
-        -- cause the "original" values to become garbage.
-        sqlState <- fmap (fmap B.copy) $ P.resultErrorField r DiagSqlstate
-        statusMessage <- fmap (fmap B.copy) P.resStatus status
-        errorMessage <- fmap (fmap B.copy) $ P.resultErrorMessage r
-        throw $!! QueryError
-                  { qeSqlState = sqlState
-                  , qeStatusMessage = statusMessage
-                  , qeErrorMessage = errorMessage
-                  }
+queryImpl connection sql parameters f = do
+  -- Run the query
+  r <- open
+  -- Check the status
+  status <- P.resultStatus r
+  if isOk status
+    then do
+      -- How many rows affected?
+      cmdTuples <- P.cmdTuples r
+      n <- case cmdTuples of
+        Nothing -> return Nothing
+        Just x -> return $ fmap fst $ readDecimal x
+      -- Create the input stream and feed it to 'f'
+      makeInputStream r >>= f n
+    else do
+      -- Throw exception
+      sqlState <- P.resultErrorField r DiagSqlstate
+      statusMessage <- P.resStatus status
+      errorMessage <- P.resultErrorMessage r
+      throw $ QueryError { qeSqlState = sqlState
+                         , qeStatusMessage = statusMessage
+                         , qeErrorMessage = errorMessage
+                         }
 
   where
-    affectedRows r = do
-      !cmdTuples <- P.cmdTuples r
-      case cmdTuples of
-        Nothing -> return $ Nothing
-        Just !x -> return $! fmap fst $! readDecimal $! B.copy x
-
-    done r = P.unsafeFreeResult r
+    isOk CommandOk = True
+    isOk TuplesOk  = True
+    isOk _         = False
 
     open = do
       parameters' <- forM parameters $ fromSqlValue connection
@@ -226,21 +218,22 @@ queryImpl connection sql parameters f =
         Nothing -> error "No result set; something is very wrong"
         Just r -> return r
 
-    go :: P.Result -> IO (InputStream [SqlValue])
-    go r = do
-      Col nFields <- liftIO $ P.nfields r
-      Row nRows <- liftIO $ P.ntuples r
-      let columns = map P.toColumn [0..nFields-1]
-      let loop []         = return Nothing
-          loop (row:rows) = do
-            columnValues <- forM columns $ getSqlVal r row
-            return $ Just (columnValues, rows)
-      SC.unfoldM loop $ map P.toRow [0..nRows-1]
+    makeInputStream r = do
+      Col nFields <- P.nfields r
+      Row nRows <- P.ntuples r
+      let columns = map P.toColumn [0.. nFields - 1]
+      let loop i = if i >= nRows
+                     then do
+                       return Nothing
+                     else do
+                       columnValues <- forM columns $ getSqlVal r $ P.toRow i
+                       return $ Just (columnValues, i + 1)
+      SC.unfoldM loop 0
 
     getSqlVal r row c = do
       mval <- P.getvalue' r row c
       typ <- P.ftype r c
-      toSqlValue (typ,mval)
+      toSqlValue (typ, mval)
 
 -- Run a query and result a list of the rows in the result.
 runQuery :: ByteString -> [SqlValue] -> Transaction [[SqlValue]]

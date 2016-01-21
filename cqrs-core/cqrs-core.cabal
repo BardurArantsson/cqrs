@@ -36,6 +36,7 @@ Library
                        Data.CQRS.Types.ArchiveRef
                        Data.CQRS.Types.ArchiveStore
                        Data.CQRS.Types.EventStore
+                       Data.CQRS.Types.Iso
                        Data.CQRS.Types.PersistedEvent
                        Data.CQRS.Types.Snapshot
                        Data.CQRS.Types.SnapshotStore

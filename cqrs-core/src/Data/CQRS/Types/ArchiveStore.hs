@@ -12,6 +12,7 @@ module Data.CQRS.Types.ArchiveStore
 import           Control.Monad ((>=>), when, void)
 import           Data.CQRS.Types.ArchiveRef
 import           Data.CQRS.Types.ArchiveMetadata
+import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StoreError
 import           Data.UUID.Types (UUID)
@@ -54,7 +55,7 @@ data ArchiveStore i e = ArchiveStore {
 -- and aggregate IDs. This can be used to add
 -- serialization/deserialization to event stores which do not support
 -- storing anything other than binary data.
-transform :: forall e e' i i' . (e' -> e, e -> e') -> (i' -> i, i -> i') -> ArchiveStore i e -> ArchiveStore i' e'
+transform :: forall e e' i i' . Iso e' e -> Iso i' i -> ArchiveStore i e -> ArchiveStore i' e'
 transform (_, g) (_, gi) (ArchiveStore getUnarchivedEventCount archiveEvents readLatestArchiveMetadata' readArchiveMetadata' readArchive') =
     ArchiveStore getUnarchivedEventCount archiveEvents readLatestArchiveMetadata' readArchiveMetadata' readArchive
   where

@@ -6,6 +6,7 @@ module Data.CQRS.Types.SnapshotStore
     ) where
 
 import Data.CQRS.Types.Snapshot (Snapshot(..))
+import Data.CQRS.Types.Iso
 
 -- | A snapshot store is used for storing snapshots.
 data SnapshotStore i a = SnapshotStore
@@ -29,7 +30,7 @@ data SnapshotStore i a = SnapshotStore
 -- could not be transformed. This can be used to avoid the need for
 -- complicated versioning of snapshot data by using simple version
 -- tags/hashes to determine compatibility with stored snapshots.
-transform :: forall a a' i i' . (a' -> a, a -> Maybe a') -> (i' -> i, i -> i') -> SnapshotStore i a -> SnapshotStore i' a'
+transform :: forall a a' i i' . (a' -> a, a -> Maybe a') -> Iso i' i -> SnapshotStore i a -> SnapshotStore i' a'
 transform (fa, ga) (fi, _) (SnapshotStore writeSnapshot' readSnapshot') =
     SnapshotStore writeSnapshot readSnapshot
     where

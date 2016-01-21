@@ -6,6 +6,7 @@ module Data.CQRS.Types.EventStore
        ) where
 
 import           Control.Monad ((>=>))
+import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StoreError
 import           System.IO.Streams (InputStream)
@@ -36,7 +37,7 @@ data EventStore i e = EventStore {
 -- implementation of 'EventStore j b' via two isomorphisms. This can
 -- be used to add serialization/deserialization to event stores which
 -- do not support storing anything other than binary data.
-transform :: forall e' e i . (e' -> e, e -> e') -> EventStore i e -> EventStore i e'
+transform :: forall e' e i . Iso e' e -> EventStore i e -> EventStore i e'
 transform (fe, ge) (EventStore storeEvents' retrieveEvents' retrieveAllEvents') =
     EventStore storeEvents retrieveEvents retrieveAllEvents
   where

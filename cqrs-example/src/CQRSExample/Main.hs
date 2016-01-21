@@ -1,20 +1,15 @@
 module Main ( main ) where
 
-import           Control.Concurrent (forkIO, threadDelay)
-import           Control.Concurrent.Async (concurrently)
+import           Control.Concurrent (forkIO)
 import           Control.Concurrent.STM (atomically, TChan)
 import qualified Control.Concurrent.STM.TChan as C
 import           Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import           Control.Monad (void, forever, when)
-import           Data.CQRS.Memory (newEventStore, newArchiveStore, newStorage)
+import           Data.CQRS.Memory (newEventStore, newStorage)
 import           Data.CQRS.SnapshotStore (nullSnapshotStore)
 import qualified Data.CQRS.Repository as R
 import           Data.CQRS.Types.PersistedEvent
-import           Data.CQRS.Types.ArchiveStore (ArchiveStore, enumerateAllEvents)
 import           Network.Wai.EventSource (ServerEvent(..))
-import qualified System.IO.Streams as Streams
-import           System.IO.Streams (InputStream)
-import           System.Random (randomIO)
 import           Web.Scotty (scotty)
 
 import           CQRSExample.TaskId (TaskId)
@@ -24,39 +19,11 @@ import           CQRSExample.Notifications
 import           CQRSExample.Query
 import           CQRSExample.Routing
 
--- Drain an input stream, applying an IO action to each element.
-drain :: InputStream a -> (a -> IO ()) -> IO ()
-drain inputStream f = go
-  where
-    go = do
-      a <- Streams.read inputStream
-      case a of
-        Just a' -> f a' >> go
-        Nothing -> return ()
-
-
 -- Source of refresh events to the browser. Never returns.
-eventSourcingThread :: TVar QueryState -> ArchiveStore TaskId Event -> TChan ServerEvent -> TChan (TaskId, [PersistedEvent Event]) -> IO ()
-eventSourcingThread qs archiveStore serverEvents publishedEvents = do
-  -- Start two threads. One thread just periodically traverses the
-  -- whole archive set once in a while. For production you would want
-  -- to track which archives have already been completely processed by
-  -- the Query state and stop traversal at that point. The other
-  -- thread just processes events published by the repository. This
-  -- latter thread never terminates unless an exception is thrown.
-  void $ concurrently traverseArchives processPublishedEvents
+eventSourcingThread :: TVar QueryState -> TChan ServerEvent -> TChan (TaskId, [PersistedEvent Event]) -> IO ()
+eventSourcingThread qs serverEvents publishedEvents = do
+    processPublishedEvents
   where
-    traverseArchives :: IO ()
-    traverseArchives = do
-      putStrLn "Traversing archives..."
-      -- Traverse and process all the events.
-      enumerateAllEvents archiveStore $ \inputStream -> do
-        drain inputStream $ \(aggregateId, event) -> do
-          processEvents aggregateId [event]
-      -- Go again after a while.
-      threadDelay 30000000
-      traverseArchives
-
     processPublishedEvents :: IO ()
     processPublishedEvents = do
       -- Main event-sourcing loop; never terminates
@@ -91,7 +58,6 @@ startServing = do
   -- Create memory CQRS backing storage
   storage <- newStorage
   eventStore <- newEventStore storage
-  archiveStore <- newArchiveStore randomIO storage
 
   -- Create the resository
   let repositorySettings = R.setSnapshotFrequency 10 $ R.defaultSettings
@@ -99,7 +65,7 @@ startServing = do
 
   -- Start sourcing events.
   void $ forkIO $ do
-    eventSourcingThread qState archiveStore serverEvents publishedEvents
+    eventSourcingThread qState serverEvents publishedEvents
 
   -- Web serving thread.
   void $ forkIO $ do

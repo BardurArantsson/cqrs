@@ -21,7 +21,6 @@ Library
                      , deepseq >= 1.4 && < 2
                      , io-streams >= 1.2 && < 2
                      , transformers >= 0.4.1 && < 0.5
-                     , uuid-types >= 1.0 && < 1.1
   Default-language:    Haskell2010
   ghc-options:         -Wall
   hs-source-dirs:      src
@@ -32,9 +31,6 @@ Library
                        Data.CQRS.Internal.Aggregate
                        Data.CQRS.Internal.Repository
                        Data.CQRS.Types.AggregateAction
-                       Data.CQRS.Types.ArchiveMetadata
-                       Data.CQRS.Types.ArchiveRef
-                       Data.CQRS.Types.ArchiveStore
                        Data.CQRS.Types.EventStore
                        Data.CQRS.Types.Iso
                        Data.CQRS.Types.PersistedEvent

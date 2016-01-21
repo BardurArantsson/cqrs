@@ -1,9 +1,15 @@
 module Main (main) where
 
-import           Test.Hspec (hspec)
-import           Data.CQRS.Memory (newEventStore, newArchiveStore, newStorage, newSnapshotStore)
-import           Data.CQRS.Test.TestKit (mkArchiveStoreSpec, mkEventStoreSpec, mkRepositorySpec, mkSnapshotStoreSpec, TestKitSettings(..))
-import           System.Random (randomIO)
+import Test.Hspec ( hspec )
+import Data.CQRS.Memory ( newEventStore
+                        , newStorage
+                        , newSnapshotStore
+                        )
+import Data.CQRS.Test.TestKit ( mkEventStoreSpec
+                              , mkRepositorySpec
+                              , mkSnapshotStoreSpec
+                              , TestKitSettings(..)
+                              )
 
 -- Run all the test suites.
 main :: IO ()
@@ -16,12 +22,6 @@ main = do
        }
   -- Run the full test kit.
   hspec $ do
-     mkArchiveStoreSpec $ testKitSettings {
-                              tksMakeContext = \c -> do
-                                as <- newArchiveStore randomIO c
-                                es <- newEventStore c
-                                return $ (as, es)
-                            }
      mkEventStoreSpec $ testKitSettings {
                             tksMakeContext = newEventStore
                         }

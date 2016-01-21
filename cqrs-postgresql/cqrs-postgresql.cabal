@@ -32,7 +32,6 @@ Library
   hs-source-dirs:     src
   exposed-modules:    Data.CQRS.PostgreSQL
                       Data.CQRS.PostgreSQL.Migrations
-                      Data.CQRS.PostgreSQL.Internal.ArchiveStore
                       Data.CQRS.PostgreSQL.Internal.EventStore
                       Data.CQRS.PostgreSQL.Internal.Migration
                       Data.CQRS.PostgreSQL.Internal.SnapshotStore

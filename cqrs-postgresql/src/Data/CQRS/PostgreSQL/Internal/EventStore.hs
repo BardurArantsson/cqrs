@@ -58,9 +58,8 @@ storeEvents cp aggregateId es = do
       \  aggregate_id, \
       \  event_data, \
       \  seq_no, \
-      \  \"timestamp\", \
-      \  archive_uuid \
-      \) VALUES ($1, $2, $3, $4, NULL)"
+      \  \"timestamp\" \
+      \) VALUES ($1, $2, $3, $4)"
 
 retrieveEvents :: Pool Connection -> ByteString -> Int -> (InputStream (PersistedEvent ByteString) -> IO a) -> IO a
 retrieveEvents cp aggregateId v0 f =

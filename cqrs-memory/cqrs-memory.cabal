@@ -21,12 +21,10 @@ Library
                      , cqrs-core >= 0.11.0 && < 0.12.0
                      , io-streams >= 1.2 && < 2
                      , stm >= 2.4 && < 3
-                     , uuid-types >= 1.0 && < 1.1
   Default-language:    Haskell2010
   ghc-options:         -Wall
   hs-source-dirs:      src
-  Exposed-modules:     Data.CQRS.Memory.Internal.ArchiveStore
-                       Data.CQRS.Memory.Internal.EventStore
+  Exposed-modules:     Data.CQRS.Memory.Internal.EventStore
                        Data.CQRS.Memory.Internal.SnapshotStore
                        Data.CQRS.Memory.Internal.Storage
                        Data.CQRS.Memory
@@ -42,7 +40,5 @@ Test-Suite tests
                      , cqrs-testkit >= 0.11.0 && < 0.12.0
                      -- Test framework
                      , hspec >= 2.2.0 && < 3.0
-                     -- Libraries
-                     , random >= 1.1 && < 2
   Ghc-options:         -Wall
   Default-language:    Haskell2010

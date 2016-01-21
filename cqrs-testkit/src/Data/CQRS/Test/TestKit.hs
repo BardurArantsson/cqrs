@@ -3,10 +3,8 @@ module Data.CQRS.Test.TestKit
     , mkEventStoreSpec
     , mkRepositorySpec
     , mkSnapshotStoreSpec
-    , mkArchiveStoreSpec
     ) where
 
-import Data.CQRS.Test.Internal.ArchiveStoreTest (mkArchiveStoreSpec)
 import Data.CQRS.Test.Internal.EventStoreTest (mkEventStoreSpec)
 import Data.CQRS.Test.Internal.RepositoryTest (mkRepositorySpec)
 import Data.CQRS.Test.Internal.SnapshotTest (mkSnapshotStoreSpec)

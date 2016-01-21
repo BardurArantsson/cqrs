@@ -1,14 +1,22 @@
 module Main ( main ) where
 
 import qualified Database.PostgreSQL.LibPQ as P
-import           Data.CQRS.PostgreSQL (newEventStore, newSnapshotStore, newArchiveStore)
-import           Data.CQRS.PostgreSQL.Migrations (migrate)
-import           Data.CQRS.PostgreSQL.Internal.UtilsSpec (mkUtilsSpec)
-import           Data.CQRS.PostgreSQL.Internal.MigrationSpec (mkApplyMigrationsSpec)
-import           Data.CQRS.Test.TestKit (mkArchiveStoreSpec, mkEventStoreSpec, mkRepositorySpec, mkSnapshotStoreSpec, TestKitSettings(..))
-import           Data.Pool (createPool, withResource, destroyAllResources)
+import           Data.CQRS.PostgreSQL ( newEventStore
+                                      , newSnapshotStore
+                                      )
+import           Data.CQRS.PostgreSQL.Migrations ( migrate )
+import           Data.CQRS.PostgreSQL.Internal.UtilsSpec ( mkUtilsSpec )
+import           Data.CQRS.PostgreSQL.Internal.MigrationSpec ( mkApplyMigrationsSpec )
+import           Data.CQRS.Test.TestKit ( mkEventStoreSpec
+                                        , mkRepositorySpec
+                                        , mkSnapshotStoreSpec
+                                        , TestKitSettings(..)
+                                        )
+import           Data.Pool ( createPool
+                           , withResource
+                           , destroyAllResources
+                           )
 import qualified Database.PostgreSQL.Harness.Client as H
-import           System.Random (randomIO)
 import           Test.Hspec
 
 main :: IO ()
@@ -34,12 +42,6 @@ main = do
   hspec $ do
      mkUtilsSpec mkConnectionPool
      mkApplyMigrationsSpec mkConnectionPool
-     mkArchiveStoreSpec $ testKitSettings {
-                              tksMakeContext = \c -> do
-                                as <- newArchiveStore randomIO c
-                                es <- newEventStore c
-                                return (as, es)
-                            }
      mkSnapshotStoreSpec $ testKitSettings {
                                tksMakeContext = newSnapshotStore
                            }

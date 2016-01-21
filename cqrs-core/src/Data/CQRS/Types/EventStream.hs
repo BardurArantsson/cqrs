@@ -1,7 +1,6 @@
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
 module Data.CQRS.Types.EventStream
        ( EventStream(..)
-       , StreamPosition  -- Re-export
        , transform
        ) where
 

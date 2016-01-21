@@ -9,8 +9,9 @@ import           Control.Monad (void, forever, when)
 import           Data.CQRS.Memory (newEventStore, newEventStream, newStorage)
 import           Data.CQRS.SnapshotStore (nullSnapshotStore)
 import qualified Data.CQRS.Repository as R
+import           Data.CQRS.Types.EventStream (EventStream(..))
 import           Data.CQRS.Types.PersistedEvent
-import           Data.CQRS.Types.EventStream (EventStream(..), StreamPosition)
+import           Data.CQRS.Types.StreamPosition (StreamPosition)
 import           Data.Maybe (isJust)
 import           Network.Wai.EventSource (ServerEvent(..))
 import qualified System.IO.Streams as Streams

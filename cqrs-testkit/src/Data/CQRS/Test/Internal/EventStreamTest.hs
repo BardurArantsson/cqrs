@@ -8,12 +8,13 @@ import           Control.Monad (forM_, replicateM)
 import           Control.Monad.Trans.Reader (ask)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
-import           Data.CQRS.Types.PersistedEvent
-import           Data.CQRS.Types.EventStore
-import           Data.CQRS.Types.EventStream
 import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
 import           Data.CQRS.Test.Internal.TestKitSettings
 import           Data.CQRS.Test.Internal.Utils (randomId, randomByteString, chunkRandomly)
+import           Data.CQRS.Types.EventStore
+import           Data.CQRS.Types.EventStream
+import           Data.CQRS.Types.PersistedEvent
+import           Data.CQRS.Types.StreamPosition
 import           Data.Function (on)
 import           Data.List (sortBy)
 import           System.IO.Streams (InputStream)

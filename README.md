@@ -41,9 +41,5 @@ At *least* the following changes are currently planned:
   external library. They are currently not flexible enough to handle
   using an arbitrary SCHEMA, or e.g. using a different database for
   snapshots.
-* Aggregate root IDs may be reworked to allow for arbitrary types
-  instead of being limited to UUIDs as they are currently. This is to
-  allow for more flexibility, for example to allow using hashes as
-  aggregate IDs to guarantee uniqueness.
 * There's currently no built-in support for persistent query views
   based on the event streams. Such support is planned.

@@ -3,7 +3,6 @@ module Data.CQRS.Types.ArchiveStore
        ( ArchiveRef
        , ArchiveMetadata(..)
        , ArchiveStore(..)
-       , StoreError(..)
        , transform
        , enumerateAllEvents
        , rotateArchives
@@ -14,7 +13,6 @@ import           Data.CQRS.Types.ArchiveRef
 import           Data.CQRS.Types.ArchiveMetadata
 import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
-import           Data.CQRS.Types.StoreError
 import           Data.UUID.Types (UUID)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC

@@ -33,6 +33,7 @@ Library
   hs-source-dirs:      src
   Exposed-modules:     Data.CQRS.Test.TestKit
                        Data.CQRS.Test.Internal.AggregateAction
+                       Data.CQRS.Test.Internal.EventStreamTest
                        Data.CQRS.Test.Internal.EventStoreTest
                        Data.CQRS.Test.Internal.RepositoryTest
                        Data.CQRS.Test.Internal.Scope

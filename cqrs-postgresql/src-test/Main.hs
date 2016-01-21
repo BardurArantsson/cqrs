@@ -2,12 +2,14 @@ module Main ( main ) where
 
 import qualified Database.PostgreSQL.LibPQ as P
 import           Data.CQRS.PostgreSQL ( newEventStore
+                                      , newEventStream
                                       , newSnapshotStore
                                       )
 import           Data.CQRS.PostgreSQL.Migrations ( migrate )
 import           Data.CQRS.PostgreSQL.Internal.UtilsSpec ( mkUtilsSpec )
 import           Data.CQRS.PostgreSQL.Internal.MigrationSpec ( mkApplyMigrationsSpec )
 import           Data.CQRS.Test.TestKit ( mkEventStoreSpec
+                                        , mkEventStreamSpec
                                         , mkRepositorySpec
                                         , mkSnapshotStoreSpec
                                         , TestKitSettings(..)
@@ -47,6 +49,12 @@ main = do
                            }
      mkEventStoreSpec $ testKitSettings {
                             tksMakeContext = newEventStore
+                        }
+     mkEventStreamSpec $ testKitSettings {
+                             tksMakeContext = \c -> do
+                               eventStream <- newEventStream c
+                               eventStore <- newEventStore c
+                               return (eventStream, eventStore)
                         }
      mkRepositorySpec $ testKitSettings {
                             tksMakeContext = \c -> do

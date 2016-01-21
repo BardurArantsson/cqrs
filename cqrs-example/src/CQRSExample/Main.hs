@@ -1,15 +1,20 @@
 module Main ( main ) where
 
-import           Control.Concurrent (forkIO)
+import           Control.Concurrent (forkIO, threadDelay)
+import           Control.Concurrent.Async (concurrently)
 import           Control.Concurrent.STM (atomically, TChan)
 import qualified Control.Concurrent.STM.TChan as C
 import           Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import           Control.Monad (void, forever, when)
-import           Data.CQRS.Memory (newEventStore, newStorage)
+import           Data.CQRS.Memory (newEventStore, newEventStream, newStorage)
 import           Data.CQRS.SnapshotStore (nullSnapshotStore)
 import qualified Data.CQRS.Repository as R
 import           Data.CQRS.Types.PersistedEvent
+import           Data.CQRS.Types.EventStream (EventStream(..), StreamPosition)
+import           Data.Maybe (isJust)
 import           Network.Wai.EventSource (ServerEvent(..))
+import qualified System.IO.Streams as Streams
+import           System.IO.Streams (InputStream)
 import           Web.Scotty (scotty)
 
 import           CQRSExample.TaskId (TaskId)
@@ -19,11 +24,41 @@ import           CQRSExample.Notifications
 import           CQRSExample.Query
 import           CQRSExample.Routing
 
--- Source of refresh events to the browser. Never returns.
-eventSourcingThread :: TVar QueryState -> TChan ServerEvent -> TChan (TaskId, [PersistedEvent Event]) -> IO ()
-eventSourcingThread qs serverEvents publishedEvents = do
-    processPublishedEvents
+-- Drain an input stream, applying an IO action to each element.
+drain :: InputStream a -> (a -> IO b) -> IO (Maybe b)
+drain inputStream f = go Nothing
   where
+    go b = do
+      a <- Streams.read inputStream
+      case a of
+        Just a' -> fmap Just (f a') >>= go
+        Nothing -> return b
+
+
+-- Source of refresh events to the browser. Never returns.
+eventSourcingThread :: TVar QueryState -> EventStream TaskId Event -> TChan ServerEvent -> TChan (TaskId, [PersistedEvent Event]) -> IO ()
+eventSourcingThread qs eventStream serverEvents publishedEvents = do
+  -- Start two threads. One thread just periodically polls the event
+  -- stream -- starting at the last position that was successfully
+  -- applied to the Query sate. The other thread just processes events
+  -- published by the repository. This latter thread never terminates
+  -- unless an exception is thrown.
+  void $ concurrently (pollEventStream Nothing) processPublishedEvents
+  where
+    pollEventStream :: Maybe StreamPosition -> IO ()
+    pollEventStream p0 = do
+      putStrLn "Polling event stream..."
+      -- Process all the events.
+      p1 <- (esReadEventStream eventStream) p0 $ \inputStream -> do
+        drain inputStream $ \(p, aggregateId, event) -> do
+          processEvents aggregateId [event]
+          return p
+      -- Next starting position?
+      let pn = if isJust p1 then p1 else p0
+      -- Go again after a while.
+      threadDelay 30000000
+      pollEventStream pn
+
     processPublishedEvents :: IO ()
     processPublishedEvents = do
       -- Main event-sourcing loop; never terminates
@@ -58,6 +93,7 @@ startServing = do
   -- Create memory CQRS backing storage
   storage <- newStorage
   eventStore <- newEventStore storage
+  eventStream <- newEventStream storage
 
   -- Create the resository
   let repositorySettings = R.setSnapshotFrequency 10 $ R.defaultSettings
@@ -65,7 +101,7 @@ startServing = do
 
   -- Start sourcing events.
   void $ forkIO $ do
-    eventSourcingThread qState serverEvents publishedEvents
+    eventSourcingThread qState eventStream serverEvents publishedEvents
 
   -- Web serving thread.
   void $ forkIO $ do

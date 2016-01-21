@@ -12,6 +12,7 @@ migrate :: Connection -> IO ()
 migrate connection =
   applyMigrations connection
     [ (uuid "d0bf19c5-6bca-4bb0-8dd8-8e1340ec7503", sqlCreateEventTbl)
+    , (uuid "1bbd4b4c-db0c-445c-90dd-19f7b725cac4", sqlCreateLogicalTimestampIdx)
     , (uuid "c7258b1c-bc3c-467a-bc1f-f63ad330651f", sqlCreateSnapshotTbl)
     ]
   where
@@ -21,7 +22,12 @@ migrate connection =
         \  event_data BYTEA NOT NULL, \
         \  seq_no INTEGER NOT NULL, \
         \  \"timestamp\" BIGINT NOT NULL, \
+        \  l_timestamp BIGSERIAL NOT NULL UNIQUE, \
         \  PRIMARY KEY (aggregate_id, seq_no) \
+        \)"
+    sqlCreateLogicalTimestampIdx =
+        "CREATE INDEX l_timestamp ON event ( \
+        \  l_timestamp \
         \)"
     sqlCreateSnapshotTbl =
         "CREATE TABLE snapshot ( \

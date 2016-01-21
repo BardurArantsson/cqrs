@@ -27,10 +27,13 @@ storeEvents (Storage store) aggregateId newEvents = atomically $ do
     modifyTVar' store addEvents
   where
     addEvents ms =
+        -- Base timestamp
+        let baseTimestamp = msCurrentTimestamp ms in
         -- Tag all the events with our wrapper
-        let newTaggedEvents = map (\e -> Event aggregateId e) newEvents in
+        let newTaggedEvents = map (uncurry (Event aggregateId)) (zip newEvents [baseTimestamp..]) in
         -- Update the storage
         ms { msEvents = (msEvents ms) >< (S.fromList newTaggedEvents)
+           , msCurrentTimestamp = baseTimestamp + (fromIntegral $ length newTaggedEvents)
            }
 
     runSanityChecks = do
@@ -67,7 +70,7 @@ retrieveAllEvents (Storage store) f = do
   events <- fmap msEvents $ atomically $ readTVar store
   let eventList = F.toList events
   inputStream <- SL.fromList $ sortBy (comparing cf) eventList
-  SC.map (\(Event aggregateId event) -> (aggregateId, event)) inputStream >>= f
+  SC.map (\(Event aggregateId event _) -> (aggregateId, event)) inputStream >>= f
   where
     cf e = (eAggregateId e, peSequenceNumber $ ePersistedEvent e)
 

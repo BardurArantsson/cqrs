@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Data.CQRS.PostgreSQL.Internal.SnapshotStore
     ( newSnapshotStore
     ) where
@@ -8,13 +8,16 @@ import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.SnapshotStore (SnapshotStore(..))
-import           Data.CQRS.PostgreSQL.Internal.Utils (execSql, execSql', query, isDuplicateKey, runTransactionP, badQueryResultMsg, SqlValue(..))
+import           Data.CQRS.PostgreSQL.Internal.Utils
+import           Data.CQRS.PostgreSQL.Internal.Tables
+import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Pool (Pool)
 import           Database.PostgreSQL.LibPQ (Connection)
+import           NeatInterpolation (text)
 import qualified System.IO.Streams as Streams
 
-writeSnapshot :: Pool Connection -> ByteString -> Snapshot ByteString -> IO ()
-writeSnapshot connectionPool aggregateId (Snapshot v d) =
+writeSnapshot :: Pool Connection -> Tables -> ByteString -> Snapshot ByteString -> IO ()
+writeSnapshot connectionPool tables aggregateId (Snapshot v d) =
   -- We ignore duplicate key exceptions since snapshots aren't
   -- important enough to merit aborting the user's command. We'll
   -- probably have opportunities to write a snapshot for the
@@ -38,19 +41,28 @@ writeSnapshot connectionPool aggregateId (Snapshot v d) =
             ]
 
   where
-    updateSnapshotSql =
-      "UPDATE snapshot SET data=$1, version=$2 WHERE aggregate_id=$3"
-    insertSnapshotSql =
-      "INSERT INTO snapshot \
-      \   (aggregate_id, data, version) \
-      \   VALUES ($1, $2, $3)"
+    snapshotTable = tblSnapshot tables
+
+    updateSnapshotSql = [text|
+      UPDATE $snapshotTable
+         SET "data" = $$1
+           , "version" = $$2
+       WHERE "aggregate_id" = $$3
+    |]
+
+    insertSnapshotSql = [text|
+      INSERT INTO $snapshotTable
+                  ("aggregate_id", "data", "version")
+           VALUES ($$1, $$2, $$3)
+    |]
+
     -- Run an action, ignoring duplicate key exceptions.
     ignoreDuplicateKey action =
       catchJust isDuplicateKey action $ \_ ->
         return () -- Ignore
 
-readSnapshot :: Pool Connection -> ByteString -> IO (Maybe (Snapshot ByteString))
-readSnapshot connectionPool aggregateId = do
+readSnapshot :: Pool Connection -> Tables -> ByteString -> IO (Maybe (Snapshot ByteString))
+readSnapshot connectionPool tables aggregateId = do
   runTransactionP connectionPool $ do
     -- Unpack columns from result.
     let unpackColumns :: [SqlValue] -> (ByteString, Int)
@@ -66,12 +78,20 @@ readSnapshot connectionPool aggregateId = do
       Nothing    -> return Nothing
 
   where
-    selectSnapshotSql =
-      "SELECT data, version FROM snapshot WHERE aggregate_id=$1;"
+    snapshotTable = tblSnapshot tables
+
+    selectSnapshotSql = [text|
+      SELECT "data", "version"
+        FROM $snapshotTable
+       WHERE "aggregate_id" = $$1
+    |]
 
 -- | Create an snapshot store backed by a PostgreSQL connection pool.
-newSnapshotStore :: Pool Connection -> IO (SnapshotStore ByteString ByteString)
-newSnapshotStore connectionPool = do
+newSnapshotStore :: Pool Connection -> Schema -> IO (SnapshotStore ByteString ByteString)
+newSnapshotStore connectionPool schema = do
   return $ SnapshotStore
-    (writeSnapshot connectionPool)
-    (readSnapshot connectionPool)
+    (writeSnapshot connectionPool tables)
+    (readSnapshot connectionPool tables)
+  where
+    tables = mkTables schema
+

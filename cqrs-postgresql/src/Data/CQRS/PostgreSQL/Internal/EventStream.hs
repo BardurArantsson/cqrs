@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Data.CQRS.PostgreSQL.Internal.EventStream
     ( newEventStream
     ) where
@@ -10,12 +10,15 @@ import           Data.CQRS.Internal.StreamPosition
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.EventStream
 import           Data.CQRS.PostgreSQL.Internal.Utils
+import           Data.CQRS.PostgreSQL.Internal.Tables
+import           Data.CQRS.PostgreSQL.Metadata
 import           Database.PostgreSQL.LibPQ (Connection)
+import           NeatInterpolation (text)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
-readEventStream :: Pool Connection -> Maybe StreamPosition -> (InputStream (StreamPosition, ByteString, PersistedEvent ByteString) -> IO a) -> IO a
-readEventStream connectionPool maybeStartingPosition f = do
+readEventStream :: Pool Connection -> Tables -> Maybe StreamPosition -> (InputStream (StreamPosition, ByteString, PersistedEvent ByteString) -> IO a) -> IO a
+readEventStream connectionPool tables maybeStartingPosition f = do
   -- Figure out the starting position
   let i0 = case maybeStartingPosition of
              Just (StreamPosition i) -> i
@@ -33,14 +36,19 @@ readEventStream connectionPool maybeStartingPosition f = do
            ] = (StreamPosition lTimestamp, aggregateId, PersistedEvent eventData (fromIntegral sequenceNumber))
     unpack columns = error $ badQueryResultMsg [show maybeStartingPosition] columns
     -- SQL
-    sqlReadEvents =
-        "  SELECT l_timestamp, aggregate_id, event_data, seq_no \
-        \    FROM event \
-        \   WHERE l_timestamp > $1 \
-        \ORDER BY l_timestamp ASC"
+    eventTable = tblEvent tables
 
-newEventStream :: Pool Connection -> IO (EventStream ByteString ByteString)
-newEventStream connectionPool = do
+    sqlReadEvents = [text|
+        SELECT "l_timestamp", "aggregate_id", "event_data", "seq_no"
+          FROM $eventTable
+         WHERE "l_timestamp" > $$1
+      ORDER BY "l_timestamp" ASC
+    |]
+
+newEventStream :: Pool Connection -> Schema -> IO (EventStream ByteString ByteString)
+newEventStream connectionPool schema = do
   return $ EventStream
-    { esReadEventStream = readEventStream connectionPool
+    { esReadEventStream = readEventStream connectionPool tables
     }
+  where
+    tables = mkTables schema

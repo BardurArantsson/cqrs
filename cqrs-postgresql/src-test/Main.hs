@@ -1,11 +1,14 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main ( main ) where
 
+import           Control.Monad (forM_)
 import qualified Database.PostgreSQL.LibPQ as P
 import           Data.CQRS.PostgreSQL ( newEventStore
                                       , newEventStream
                                       , newSnapshotStore
                                       )
-import           Data.CQRS.PostgreSQL.Migrations ( migrate )
+import           Data.CQRS.PostgreSQL.Migrations
+import           Data.CQRS.PostgreSQL.Metadata
 import           Data.CQRS.PostgreSQL.Internal.UtilsSpec ( mkUtilsSpec )
 import           Data.CQRS.PostgreSQL.Internal.MigrationSpec ( mkApplyMigrationsSpec )
 import           Data.CQRS.Test.TestKit ( mkEventStoreSpec
@@ -31,34 +34,36 @@ main = do
   let mkConnectionPool = do
         connectionString <- fmap H.toConnectionString $ H.createTemporaryDatabase url
         createPool (P.connectdb connectionString) P.finish 1 1 5
-  -- Setup for TestKit
-  let testKitSettings = TestKitSettings
-       { tksMakeContext = \_ -> return ()
-       , tksSetUp = do
-           connectionPool <- mkConnectionPool
-           withResource connectionPool migrate
-           return connectionPool
-       , tksTearDown = destroyAllResources
-       }
-  -- Run the tests
-  hspec $ do
-     mkUtilsSpec mkConnectionPool
-     mkApplyMigrationsSpec mkConnectionPool
-     mkSnapshotStoreSpec $ testKitSettings {
-                               tksMakeContext = newSnapshotStore
-                           }
-     mkEventStoreSpec $ testKitSettings {
-                            tksMakeContext = newEventStore
-                        }
-     mkEventStreamSpec $ testKitSettings {
-                             tksMakeContext = \c -> do
-                               eventStream <- newEventStream c
-                               eventStore <- newEventStore c
-                               return (eventStream, eventStore)
-                        }
-     mkRepositorySpec $ testKitSettings {
-                            tksMakeContext = \c -> do
-                              es <- newEventStore c
-                              ss <- newSnapshotStore c
-                              return (es, ss)
-                        }
+  -- Make sure we test both in the default schema and with a named schema
+  forM_ [DefaultSchema, NamedSchema "foobar"] $ \schema -> do
+    -- Setup for TestKit
+    let testKitSettings = TestKitSettings
+         { tksMakeContext = \_ -> return ()
+         , tksSetUp = do
+             connectionPool <- mkConnectionPool
+             withResource connectionPool (\c -> migrate c schema)
+             return connectionPool
+         , tksTearDown = destroyAllResources
+         }
+    -- Run the tests
+    hspec $ do
+       mkUtilsSpec mkConnectionPool
+       mkApplyMigrationsSpec mkConnectionPool
+       mkSnapshotStoreSpec $ testKitSettings {
+                                 tksMakeContext = \c -> newSnapshotStore c schema
+                             }
+       mkEventStoreSpec $ testKitSettings {
+                              tksMakeContext = \c -> newEventStore c schema
+                          }
+       mkEventStreamSpec $ testKitSettings {
+                               tksMakeContext = \c -> do
+                                 eventStream <- newEventStream c schema
+                                 eventStore <- newEventStore c schema
+                                 return (eventStream, eventStore)
+                          }
+       mkRepositorySpec $ testKitSettings {
+                              tksMakeContext = \c -> do
+                                es <- newEventStore c schema
+                                ss <- newSnapshotStore c schema
+                                return (es, ss)
+                          }

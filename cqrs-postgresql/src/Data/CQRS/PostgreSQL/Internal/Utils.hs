@@ -149,11 +149,11 @@ toSqlValue (oid, mvalue) =
             Just _  -> return $ construct mvalue'
 
 -- | Execute a query with no result.
-execSql :: ByteString -> [SqlValue] -> Transaction ()
+execSql :: Text -> [SqlValue] -> Transaction ()
 execSql sql parameters = void $ execSql' sql parameters
 
 -- | Execute a query an return the number of updated rows (if available).
-execSql' :: ByteString -> [SqlValue] -> Transaction (Maybe Int)
+execSql' :: Text -> [SqlValue] -> Transaction (Maybe Int)
 execSql' sql parameters = query' sql parameters (\n _ -> return n)
 
 -- | Error happened during query.
@@ -167,15 +167,15 @@ instance Exception QueryError
 
 -- | Run a query and fold over the results. The action receives an
 -- 'InputStream' over all the rows in the result.
-query :: ByteString -> [SqlValue] -> (InputStream [SqlValue] -> Transaction a) -> Transaction a
+query :: Text -> [SqlValue] -> (InputStream [SqlValue] -> Transaction a) -> Transaction a
 query sql parameters f = query' sql parameters $ \_ is -> f is
 
-query' :: ByteString -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> Transaction a) -> Transaction a
+query' :: Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> Transaction a) -> Transaction a
 query' sql parameters f = Transaction $ do
   connection <- ask
   lift $ queryImpl connection sql parameters (\n is -> doRunTransaction connection (f n is))
 
-queryImpl :: Connection -> ByteString -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> IO a) -> IO a
+queryImpl :: Connection -> Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> IO a) -> IO a
 queryImpl connection sql parameters f = do
   -- Run the query
   r <- open
@@ -207,7 +207,7 @@ queryImpl connection sql parameters f = do
 
     open = do
       parameters' <- forM parameters $ fromSqlValue connection
-      mr <- P.execParams connection sql parameters' Text
+      mr <- P.execParams connection (encodeUtf8 sql) parameters' Text
       case mr of
         Nothing -> error "No result set; something is very wrong"
         Just r -> return r
@@ -230,7 +230,7 @@ queryImpl connection sql parameters f = do
       toSqlValue (typ, mval)
 
 -- Run a query and result a list of the rows in the result.
-runQuery :: ByteString -> [SqlValue] -> Transaction [[SqlValue]]
+runQuery :: Text -> [SqlValue] -> Transaction [[SqlValue]]
 runQuery sql parameters = query sql parameters (liftIO . SL.toList)
 
 -- | Format a message indicating a bad query result due to the "shape".

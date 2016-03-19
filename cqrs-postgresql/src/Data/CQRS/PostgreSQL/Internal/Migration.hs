@@ -7,7 +7,6 @@ import           Control.Monad (forM_)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.CQRS.PostgreSQL.Internal.Utils (badQueryResultMsg, execSql, query, runTransaction, SqlValue(..))
 import           Data.Text (Text)
-import           Data.Text.Encoding (encodeUtf8)
 import           Database.PostgreSQL.LibPQ (Connection)
 import qualified System.IO.Streams as Streams
 import qualified System.IO.Streams.Combinators as SC
@@ -34,7 +33,7 @@ applyMigrations c migrations = do
           error $ "Migration error: Changeset SQL modified: " ++ show changeSetId
         Nothing -> do
           execSql sqlInsertChangeSet [ changeSetIdSql, SqlText $ Just sql ]
-          execSql (encodeUtf8 sql) [ ]
+          execSql sql [ ]
 
   where
 

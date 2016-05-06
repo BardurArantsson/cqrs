@@ -1,0 +1,6 @@
+packages: cqrs-core
+          cqrs-testkit
+          cqrs-memory
+          cqrs-postgresql
+          cqrs-example
+tests: True

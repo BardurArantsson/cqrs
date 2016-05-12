@@ -1,28 +1,29 @@
 #!/bin/bash -xe
 D="$(dirname $0)"
 
-# Helper to initialize and perform a build in $CWD
-build() {
+build_it() {
+    local DEPS="$*"
     cabal sandbox init
-    for src in $*; do
-        cabal sandbox add-source "$src"
+    for DEP in $DEPS; do
+        cabal sandbox add-source "../${DEP}"
     done
     cabal install --enable-tests --dependencies-only
     cabal configure
     cabal build
 }
 
-# Build the 'core' package
-(cd "${D}/cqrs-core" && build)
+build() {
+    # Extract parameters
+    local NAME=$1
+    shift
+    local DEPS="$@"
+    # Build in the sub-project directory
+    (cd "${D}/${NAME}" && build_it "$DEPS")
+}
 
-# Build the 'testkit' package
-(cd "${D}/cqrs-testkit" && build "../cqrs-core")
-
-# Build the 'memory' package
-(cd "${D}/cqrs-memory" && build "../cqrs-core" "../cqrs-testkit")
-
-# Build the 'postgresql' package
-(cd "${D}/cqrs-postgresql" && build "../cqrs-core" "../cqrs-testkit")
-
-# Build the 'example' package
-(cd "${D}/cqrs-example" && build "../cqrs-core" "../cqrs-memory")
+# Build all the packages
+build cqrs-core
+build cqrs-testkit    cqrs-core
+build cqrs-memory     cqrs-core cqrs-testkit
+build cqrs-postgresql cqrs-core cqrs-testkit
+build cqrs-example    cqrs-core cqrs-memory

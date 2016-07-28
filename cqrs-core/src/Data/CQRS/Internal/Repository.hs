@@ -6,7 +6,6 @@ module Data.CQRS.Internal.Repository
     , newRepository
     ) where
 
-import           Control.DeepSeq (NFData)
 import           Control.Monad (void)
 import           Data.CQRS.Types.EventStore (EventStore(..))
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent)
@@ -45,7 +44,7 @@ data Repository i a e = Repository
     }
 
 -- | Create a repository from a pool of event store backends.
-newRepository :: (Show e, NFData e) => Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> ((i, [PersistedEvent e]) -> IO r) -> Repository i a e
+newRepository :: Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> ((i, [PersistedEvent e]) -> IO r) -> Repository i a e
 newRepository settings aggregateAction eventStore snapshotStore publishEvents = do
   Repository aggregateAction eventStore snapshotStore publishEvents' settings
   where

@@ -68,7 +68,7 @@ data UnitOfWork a e =
               }
 
 -- | Run a command against a repository.
-runCommandT :: (MonadIO m) => Repository i a e -> CommandT i a e m b -> m b
+runCommandT :: Repository i a e -> CommandT i a e m b -> m b
 runCommandT repository (CommandT command) = runReaderT command $ Command repository
 
 -- | Run a command against a repository, ignoring the result.
@@ -116,7 +116,7 @@ getAggregateAction = CommandT $ liftM (repositoryAggregateAction . commandReposi
 -- in the unit of work that are lifted into the nested monad may be
 -- performed regardless. (This is due to optimistic concurrency
 -- control.)
-createAggregate :: (MonadIO m, Monad m) => i -> (UnitOfWorkT a e (CommandT i a e m) (Maybe a) -> UnitOfWorkT a e (CommandT i a e m) b) -> CommandT i a e m b
+createAggregate :: (MonadIO m) => i -> (UnitOfWorkT a e (CommandT i a e m) (Maybe a) -> UnitOfWorkT a e (CommandT i a e m) b) -> CommandT i a e m b
 createAggregate aggregateId unitOfWork = do
   -- We use an "empty" aggregate state as the starting point
   -- here. We'll automatically conflict when trying to save if there

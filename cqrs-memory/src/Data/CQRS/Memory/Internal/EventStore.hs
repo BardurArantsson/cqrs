@@ -20,7 +20,7 @@ import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.List as SL
 import qualified System.IO.Streams.Combinators as SC
 
-storeEvents :: (Eq i, Show i, Typeable i) => Storage i e -> i -> [PersistedEvent e] -> IO ()
+storeEvents :: (Show i, Eq i, Typeable i) => Storage i e -> i -> [PersistedEvent e] -> IO ()
 storeEvents (Storage store) aggregateId newEvents = atomically $ do
     runSanityChecks
     -- Append to the list of all previous events
@@ -81,7 +81,7 @@ eventsByAggregateId store aggregateId = do
   return $ fmap ePersistedEvent $ S.filter (\e -> aggregateId == eAggregateId e) $ msEvents events
 
 -- | Create a memory-backend event store.
-newEventStore :: (Eq i, Show i, Ord i, Typeable i, Show e) => Storage i e -> IO (EventStore i e)
+newEventStore :: (Show i, Ord i, Typeable i) => Storage i e -> IO (EventStore i e)
 newEventStore storage = do
   return $ EventStore
     { esStoreEvents = storeEvents storage

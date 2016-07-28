@@ -39,7 +39,7 @@ Executable cqrs-example
                    , scotty >= 0.10.2 && < 1
                    , stm >= 2.4
                    , text >= 1.1.0 && < 2
-                   , transformers >= 0.4.1 && < 0.5
+                   , transformers >= 0.5.2 && < 0.6
                    , warp >= 3.1 && < 3.3
                    , wai-middleware-static >= 0.8 && < 0.9
                    , wai-extra >= 3.0.13 && < 4

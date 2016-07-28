@@ -11,7 +11,7 @@ import           Data.Aeson.Types (object, Value(..))
 import           CQRSExample.Query
 
 -- Generate a list of JSONable values by mapping a function on a query.
-qListToJson :: ToJSON b => (QueryM [a]) -> (a -> b) -> TVar QueryState -> IO [b]
+qListToJson :: QueryM [a] -> (a -> b) -> TVar QueryState -> IO [b]
 qListToJson q f p = liftM (map f) $ runQuery p q
 
 -- Query the task list, producing JSON.

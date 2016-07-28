@@ -3,7 +3,6 @@ module Data.CQRS.Test.Internal.EventStreamTest
     ( mkEventStreamSpec
     ) where
 
-import           Control.DeepSeq (NFData)
 import           Control.Monad (forM_, replicateM)
 import           Control.Monad.Trans.Reader (ask)
 import           Control.Monad.IO.Class (liftIO)
@@ -130,7 +129,7 @@ mkEventStreamSpec testKitSettings = do
       return $ Scope archiveStore eventStore
 
 -- Publish a sequence of events.
-publishEvents :: (NFData e, Show e) => i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
+publishEvents :: i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
 publishEvents aggregateId pes = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ do

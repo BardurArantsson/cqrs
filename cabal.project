@@ -1,0 +1,6 @@
+packages:
+  cqrs-core/
+  cqrs-example/
+  cqrs-memory/
+  cqrs-postgresql/
+  cqrs-testkit/

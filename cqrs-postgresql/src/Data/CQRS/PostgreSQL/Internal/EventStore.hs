@@ -35,14 +35,16 @@ import           NeatInterpolation (text)
 -- A's events.  However, in PostgreSQL the initial read that B
 -- performs cannot see A's events because READ COMMITTED doesn't
 -- permit it, even if the events were inserts.
-storeEvents :: Pool Connection -> Tables -> ByteString -> [PersistedEvent ByteString] -> IO ()
+storeEvents :: Pool Connection -> Tables -> ByteString -> [PersistedEvent ByteString ByteString] -> IO ()
 storeEvents cp tables aggregateId es = do
   translateExceptions aggregateId $ do
     runTransactionP cp $ do
       forM_ es $ \e -> do
         -- Add a timestamp for informational purposes.
         timestamp <- liftIO $ fmap (\t -> round $ t * 1000) $ getPOSIXTime
-        -- Insert
+        -- Insert. We ignore the aggregateID specified on the actual
+        -- events because it must (by contract) be exactly the same as
+        -- the 'aggregateId' parameter.
         execSql sqlInsertEvent
           [ SqlByteArray $ Just aggregateId
           , SqlByteArray $ Just $ peEvent e
@@ -63,7 +65,7 @@ storeEvents cp tables aggregateId es = do
            VALUES ($$1, $$2, $$3, $$4)
     |]
 
-retrieveEvents :: Pool Connection -> Tables -> ByteString -> Int -> (InputStream (PersistedEvent ByteString) -> IO a) -> IO a
+retrieveEvents :: Pool Connection -> Tables -> ByteString -> Int -> (InputStream (PersistedEvent ByteString ByteString) -> IO a) -> IO a
 retrieveEvents cp tables aggregateId v0 f =
    runTransactionP cp $ do
      let params = [ SqlByteArray $ Just aggregateId
@@ -74,7 +76,7 @@ retrieveEvents cp tables aggregateId v0 f =
   where
     unpack [ SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
-           ] = PersistedEvent eventData (fromIntegral sequenceNumber)
+           ] = PersistedEvent eventData (fromIntegral sequenceNumber) aggregateId
     unpack columns = error $ badQueryResultMsg [show aggregateId, show v0] columns
 
     eventTable = tblEvent tables
@@ -87,7 +89,7 @@ retrieveEvents cp tables aggregateId v0 f =
       ORDER BY "seq_no" ASC
     |]
 
-retrieveAllEvents :: Pool Connection -> Tables -> (InputStream (ByteString, PersistedEvent ByteString) -> IO a) -> IO a
+retrieveAllEvents :: Pool Connection -> Tables -> (InputStream (PersistedEvent ByteString ByteString) -> IO a) -> IO a
 retrieveAllEvents cp tables f =
   runTransactionP cp $ do
     query sqlSelectAllEvents [ ] $ \is ->
@@ -96,7 +98,7 @@ retrieveAllEvents cp tables f =
     unpack [ SqlByteArray (Just aggregateId)
            , SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
-           ] = (aggregateId, PersistedEvent eventData (fromIntegral sequenceNumber))
+           ] = PersistedEvent eventData (fromIntegral sequenceNumber) aggregateId
     unpack columns = error $ badQueryResultMsg [] columns
 
     eventTable = tblEvent tables

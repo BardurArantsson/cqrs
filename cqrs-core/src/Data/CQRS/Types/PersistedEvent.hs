@@ -4,13 +4,18 @@ module Data.CQRS.Types.PersistedEvent
        ) where
 
 import Control.DeepSeq (NFData(..))
+import Data.Bifunctor (Bifunctor(..))
 import GHC.Generics (Generic)
 
 -- | Persisted Event.
-data PersistedEvent e =
+data PersistedEvent i e =
   PersistedEvent { peEvent :: !e            -- ^ Event.
                  , peSequenceNumber :: !Int -- ^ Sequence number within the aggregate.
+                 , peAggregateId :: !i      -- ^ Identifier of aggregate that event applies to.
                  }
-  deriving (Show, Eq, Functor, Generic)
+  deriving (Show, Eq, Generic)
 
-instance NFData e => NFData (PersistedEvent e)
+instance Bifunctor PersistedEvent where
+  bimap f g (PersistedEvent e seqNo i) = PersistedEvent (g e) seqNo (f i)
+
+instance (NFData e, NFData i) => NFData (PersistedEvent i e)

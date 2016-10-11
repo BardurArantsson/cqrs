@@ -22,13 +22,13 @@ data Scope i e = Scope { scopeEventStore :: EventStore i e
                        }
 
 -- Store given events in exactly the order given.
-storeEvents :: i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
+storeEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
 storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ (ES.esStoreEvents eventStore) aggregateId events
 
 -- Read all events for a given aggregate.
-readEvents :: i -> ScopeM (Scope i e) [PersistedEvent e]
+readEvents :: i -> ScopeM (Scope i e) [PersistedEvent i e]
 readEvents aggregateId = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ ES.esRetrieveEvents eventStore aggregateId (-1) $ SL.toList
@@ -42,8 +42,8 @@ mkEventStoreSpec testKitSettings = do
     it "should be able to retrieve stored events" $ do
       aggregateId <- randomId
       -- Write two events.
-      let expectedEvents = [ PersistedEvent "test event 0" 0
-                           , PersistedEvent "test event 1" 1
+      let expectedEvents = [ PersistedEvent "test event 0" 0 aggregateId
+                           , PersistedEvent "test event 1" 1 aggregateId
                            ]
       storeEvents aggregateId expectedEvents
       -- Retrieve the stored events.
@@ -54,8 +54,8 @@ mkEventStoreSpec testKitSettings = do
     it "should throw a VersionConflict exception when storing conflicting events in a single operation" $ do
       aggregateId <- randomId
       -- Write two conflicting events.
-      let conflictingEvents = [ PersistedEvent "test event 0" 0
-                              , PersistedEvent "test event 1" 0
+      let conflictingEvents = [ PersistedEvent "test event 0" 0 aggregateId
+                              , PersistedEvent "test event 1" 0 aggregateId
                               ]
       storeEvents aggregateId conflictingEvents `shouldThrow` VersionConflict aggregateId
       -- Make sure we didn't actually store any events
@@ -65,10 +65,10 @@ mkEventStoreSpec testKitSettings = do
     it "should throw a VersionConflict exception when storing conflicting events in multiple operations" $ do
       aggregateId <- randomId
       -- Write a single event
-      let initialEvent = PersistedEvent "test event 0" 0
+      let initialEvent = PersistedEvent "test event 0" 0 aggregateId
       storeEvents aggregateId [initialEvent]
       -- Write the event that should conflict
-      let conflictingEvents = [ PersistedEvent "test event 1" 0 ]
+      let conflictingEvents = [ PersistedEvent "test event 1" 0 aggregateId]
       storeEvents aggregateId conflictingEvents `shouldThrow` VersionConflict aggregateId
       -- Make sure we didn't write the second event
       storedEvents <- readEvents aggregateId

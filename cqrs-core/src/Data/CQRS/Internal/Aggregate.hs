@@ -48,7 +48,7 @@ applySnapshot a0 (Just s) =
      , aggregateSnapshotVersion = sVersion s }
 
 -- Apply event from event store to aggregate. The event will not be published.
-applyEvent :: Aggregate a e -> PersistedEvent e -> Aggregate a e
+applyEvent :: Aggregate a e -> PersistedEvent i e -> Aggregate a e
 applyEvent a pe =
     a { aggregateValue = Just $ (aggregateAction a) (aggregateValue a) $ peEvent pe
       , aggregateVersion0 = max (peSequenceNumber pe) (aggregateVersion0 a)

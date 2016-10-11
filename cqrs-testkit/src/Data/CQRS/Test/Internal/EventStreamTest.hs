@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, ScopedTypeVariables #-}
 module Data.CQRS.Test.Internal.EventStreamTest
     ( mkEventStreamSpec
     ) where
@@ -33,7 +33,7 @@ data Scope i e = Scope { scopeEventStream :: EventStream i e
 -- | Assert that two event streams are observationally equivalent
 -- assuming that events may appear in any order wrt. aggregate ID, as
 -- long as they respect the sequence number ordering.
-shouldHaveEventsEquivalentTo :: (Eq e, Show e, Show i, Ord i) => [(i, PersistedEvent e)] -> [(i, PersistedEvent e)] -> Expectation
+shouldHaveEventsEquivalentTo :: (Eq e, Show e, Show i, Ord i) => [(i, PersistedEvent i e)] -> [(i, PersistedEvent i e)] -> Expectation
 shouldHaveEventsEquivalentTo actualEvents expectedEvents =
     assertBool message (actualEvents' == expectedEvents')
   where
@@ -44,22 +44,22 @@ shouldHaveEventsEquivalentTo actualEvents expectedEvents =
     expectedEvents' = sortBy (compare `on` fst) expectedEvents
 
 -- Store given events in exactly the order given.
-storeEvents :: i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
+storeEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
 storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ (esStoreEvents eventStore) aggregateId events
 
-readEventStream' :: Maybe StreamPosition -> (InputStream (StreamPosition, i, PersistedEvent e) -> IO a) -> ScopeM (Scope i e) a
+readEventStream' :: Maybe StreamPosition -> (InputStream (StreamPosition, PersistedEvent i e) -> IO a) -> ScopeM (Scope i e) a
 readEventStream' maybeStartPosition f = do
   eventStream <- fmap scopeEventStream ask
   liftIO $ (esReadEventStream eventStream) maybeStartPosition f
 
-readEventStream :: Maybe StreamPosition -> ScopeM (Scope i e) [(i, PersistedEvent e)]
+readEventStream :: Maybe StreamPosition -> ScopeM (Scope i e) [(i, PersistedEvent i e)]
 readEventStream maybeStartPosition = do
   eventStream <- fmap scopeEventStream ask
   liftIO $ (esReadEventStream eventStream) maybeStartPosition (SC.map dropStreamPosition) >>= SL.toList
   where
-    dropStreamPosition (_, i, e) = (i, e)
+    dropStreamPosition (_, e) = (peAggregateId e, e)
 
 -- Given test kit settings, create the full spec for testing the event
 -- stream implementation against those settings.
@@ -71,9 +71,9 @@ mkEventStreamSpec testKitSettings = do
     it "should support enumeration from the beginning" $ do
       -- Setup
       aggregateId <- randomId
-      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0)
-                           , (aggregateId, PersistedEvent "6" 1)
-                           , (aggregateId, PersistedEvent "9" 2)
+      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0 aggregateId)
+                           , (aggregateId, PersistedEvent "6" 1 aggregateId)
+                           , (aggregateId, PersistedEvent "9" 2 aggregateId)
                            ]
       let expectedEvents' = map snd expectedEvents
       storeEvents aggregateId expectedEvents'
@@ -102,17 +102,17 @@ mkEventStreamSpec testKitSettings = do
     it "should support resumption from a previously reached position" $ do
       -- Setup: Create a few events
       aggregateId <- randomId
-      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0)
-                           , (aggregateId, PersistedEvent "6" 1)
-                           , (aggregateId, PersistedEvent "9" 2)
-                           , (aggregateId, PersistedEvent "12" 3)
-                           , (aggregateId, PersistedEvent "15" 4)
+      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0 aggregateId)
+                           , (aggregateId, PersistedEvent "6" 1 aggregateId)
+                           , (aggregateId, PersistedEvent "9" 2 aggregateId)
+                           , (aggregateId, PersistedEvent "12" 3 aggregateId)
+                           , (aggregateId, PersistedEvent "15" 4 aggregateId)
                            ]
       storeEvents aggregateId $ map snd expectedEvents
       -- Setup: Read until we've seen two events
       p0 <- readEventStream' Nothing $ \is -> do
-                _              <- S.read is -- Read & ignore first event
-                Just (p, _, _) <- S.read is -- Grab the position of the second event
+                _           <- S.read is -- Read & ignore first event
+                Just (p, _) <- S.read is -- Grab the position of the second event
                 return p
       -- Exercise
       es <- readEventStream $ Just p0
@@ -129,7 +129,7 @@ mkEventStreamSpec testKitSettings = do
       return $ Scope archiveStore eventStore
 
 -- Publish a sequence of events.
-publishEvents :: i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
+publishEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
 publishEvents aggregateId pes = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ do
@@ -144,13 +144,13 @@ publishEvents aggregateId pes = do
       liftIO $ chunkRandomly n xs
 
 -- Generate and publish a series of events to an aggregate.
-genEvents :: i -> Int -> Int -> ScopeM (Scope i ByteString) [(i, PersistedEvent ByteString)]
+genEvents :: forall i . i -> Int -> Int -> ScopeM (Scope i ByteString) [(i, PersistedEvent i ByteString)]
 genEvents aggregateId n i0 = do
   pes <- liftIO $ genEvents'
   publishEvents aggregateId pes
   return $ map (\pe -> (aggregateId, pe)) pes
   where
-    genEvents' :: IO [PersistedEvent ByteString]
+    genEvents' :: IO [PersistedEvent i ByteString]
     genEvents' = do
       es <- replicateM n $ randomByteString 8
-      return $ map (\(i, e) -> PersistedEvent e (i0 + i)) (zip [0..] es)
+      return $ map (\(i, e) -> PersistedEvent e (i0 + i) aggregateId) (zip [0..] es)

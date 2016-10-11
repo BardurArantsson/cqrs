@@ -17,7 +17,7 @@ import           NeatInterpolation (text)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
-readEventStream :: Pool Connection -> Tables -> Maybe StreamPosition -> (InputStream (StreamPosition, ByteString, PersistedEvent ByteString) -> IO a) -> IO a
+readEventStream :: Pool Connection -> Tables -> Maybe StreamPosition -> (InputStream (StreamPosition, PersistedEvent ByteString ByteString) -> IO a) -> IO a
 readEventStream connectionPool tables maybeStartingPosition f = do
   -- Figure out the starting position
   let i0 = case maybeStartingPosition of
@@ -33,7 +33,7 @@ readEventStream connectionPool tables maybeStartingPosition f = do
            , SqlByteArray (Just aggregateId)
            , SqlByteArray (Just eventData)
            , SqlInt32 (Just sequenceNumber)
-           ] = (StreamPosition lTimestamp, aggregateId, PersistedEvent eventData (fromIntegral sequenceNumber))
+           ] = (StreamPosition lTimestamp, PersistedEvent eventData (fromIntegral sequenceNumber) aggregateId)
     unpack columns = error $ badQueryResultMsg [show maybeStartingPosition] columns
     -- SQL
     eventTable = tblEvent tables

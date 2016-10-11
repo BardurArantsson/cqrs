@@ -37,7 +37,7 @@ drain inputStream f = go Nothing
 
 
 -- Source of refresh events to the browser. Never returns.
-eventSourcingThread :: TVar QueryState -> EventStream TaskId Event -> TChan ServerEvent -> TChan (TaskId, [PersistedEvent Event]) -> IO ()
+eventSourcingThread :: TVar QueryState -> EventStream TaskId Event -> TChan ServerEvent -> TChan (TaskId, [PersistedEvent TaskId Event]) -> IO ()
 eventSourcingThread qs eventStream serverEvents publishedEvents = do
   -- Start two threads. One thread just periodically polls the event
   -- stream -- starting at the last position that was successfully
@@ -51,8 +51,8 @@ eventSourcingThread qs eventStream serverEvents publishedEvents = do
       putStrLn "Polling event stream..."
       -- Process all the events.
       p1 <- (esReadEventStream eventStream) p0 $ \inputStream -> do
-        drain inputStream $ \(p, aggregateId, event) -> do
-          processEvents aggregateId [event]
+        drain inputStream $ \(p, event) -> do
+          processEvents (peAggregateId event) [event]
           return p
       -- Next starting position?
       let pn = if isJust p1 then p1 else p0
@@ -72,7 +72,7 @@ eventSourcingThread qs eventStream serverEvents publishedEvents = do
         when (notifications /= mempty) $ do
           atomically $ C.writeTChan serverEvents $! toServerEvent $ notifications
 
-    processEvents :: TaskId -> [PersistedEvent Event] -> IO ()
+    processEvents :: TaskId -> [PersistedEvent TaskId Event] -> IO ()
     processEvents aggregateId evs = do
       -- Supply to Query to update its state.
       runQuery qs $ reactToEvents aggregateId evs

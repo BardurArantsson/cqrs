@@ -39,12 +39,12 @@ data Repository i a e = Repository
     { repositoryAggregateAction :: AggregateAction a e
     , repositoryEventStore :: EventStore i e
     , repositorySnapshotStore :: SnapshotStore i a
-    , repositoryPublishEvents :: (i, [PersistedEvent e]) -> IO ()
+    , repositoryPublishEvents :: (i, [PersistedEvent i e]) -> IO ()
     , repositorySettings :: Settings
     }
 
--- | Create a repository from a pool of event store backends.
-newRepository :: Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> ((i, [PersistedEvent e]) -> IO r) -> Repository i a e
+-- | Create a repository.
+newRepository :: Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> ((i, [PersistedEvent i e]) -> IO r) -> Repository i a e
 newRepository settings aggregateAction eventStore snapshotStore publishEvents = do
   Repository aggregateAction eventStore snapshotStore publishEvents' settings
   where

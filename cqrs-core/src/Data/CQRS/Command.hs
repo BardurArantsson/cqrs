@@ -84,7 +84,7 @@ writeChanges aggregateId aggregate = CommandT $ do
   let publishEvents = repositoryPublishEvents repository
   -- Convert all the accumulated events to PersistedEvent
   versionedEvents <- forM (A.versionedEvents aggregate) $ \(v, e) -> do
-    return $ PersistedEvent e v
+    return $ PersistedEvent e v aggregateId
   -- We only care if new events were generated
   when (length versionedEvents > 0) $ do
     -- Commit events to event store.

@@ -91,7 +91,7 @@ qCompletedTaskIdList = do
       p (QTask _ _ QTaskOpen) = False
       p (QTask _ _ QTaskArchived) = False
 
-reactToEvents :: TaskId -> [PersistedEvent Event] -> QueryM ()
+reactToEvents :: TaskId -> [PersistedEvent TaskId Event] -> QueryM ()
 reactToEvents aggregateId evs = do
   -- Just handle each event separately; in real production code
   -- updates should probably be batched to avoid excessive IO
@@ -116,11 +116,11 @@ reactToEvents aggregateId evs = do
     -- the event since either a) we've already processed it, or b)
     -- it's a future event which we cannot quite process yet. We'll
     -- eventually re-receive the event via archive traversal.
-    isApplicable :: QueryState -> PersistedEvent a -> Bool
+    isApplicable :: QueryState -> PersistedEvent i a -> Bool
     isApplicable qs pev =
         peSequenceNumber pev == 1 + M.findWithDefault (-1) aggregateId (qAggregateVersions qs)
 
-    updateAggregateVersion :: QueryState -> PersistedEvent a -> QueryState
+    updateAggregateVersion :: QueryState -> PersistedEvent i a -> QueryState
     updateAggregateVersion qs pev =
         qs { qAggregateVersions = M.insert aggregateId (peSequenceNumber pev) $ qAggregateVersions qs }
 

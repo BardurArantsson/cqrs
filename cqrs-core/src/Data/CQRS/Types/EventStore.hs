@@ -6,6 +6,7 @@ module Data.CQRS.Types.EventStore
        ) where
 
 import           Control.Monad ((>=>))
+import           Data.Bifunctor (bimap)
 import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StoreError
@@ -17,20 +18,21 @@ data EventStore i e = EventStore {
       -- | Store new events for an aggregate. May throw 'StoreError' exception
       -- if there's a problem storing the events. Guarantees atomicity, i.e.
       -- either all the events are stored, or none of them are (in the case of
-      -- errors or conflicts).
-      esStoreEvents :: i -> [PersistedEvent e] -> IO ()
+      -- errors or conflicts). All given events __MUST__ have the same aggregate
+      -- ID as specified in the first parameter.
+      esStoreEvents :: i -> [PersistedEvent i e] -> IO ()
     ,
       -- | Process sequence of events associated with the given aggregate.
       -- Only events at or after the given version number are supplied
       -- by the input stream. The events are supplied in increasing
       -- order of version number.
-      esRetrieveEvents :: forall a . i -> Int -> (InputStream (PersistedEvent e) -> IO a) -> IO a
+      esRetrieveEvents :: forall a . i -> Int -> (InputStream (PersistedEvent i e) -> IO a) -> IO a
     ,
       -- | Read all events from the event store. Events will be
       -- returned in order of increasing version number, grouped by
       -- aggregate ID. __This function should ONLY be used for
       -- debugging purposes.__
-      esRetrieveAllEvents :: forall a . (InputStream (i, PersistedEvent e) -> IO a) -> IO a
+      esRetrieveAllEvents :: forall a . (InputStream (PersistedEvent i e) -> IO a) -> IO a
     }
 
 -- | Transform an implementation of 'EventStore i a' to an
@@ -41,9 +43,26 @@ transform :: forall e' e i' i . Iso e' e -> Iso i' i -> EventStore i e -> EventS
 transform (fe, ge) (fi, gi) (EventStore storeEvents' retrieveEvents' retrieveAllEvents') =
     EventStore storeEvents retrieveEvents retrieveAllEvents
   where
-    storeEvents :: i' -> [PersistedEvent e'] -> IO ()
-    storeEvents aggregateId = storeEvents' (fi aggregateId) . map (fmap fe)
-    retrieveEvents :: forall a . i' -> Int -> (InputStream (PersistedEvent e') -> IO a) -> IO a
-    retrieveEvents aggregateId v0 p = retrieveEvents' (fi aggregateId) v0 $ SC.map (fmap ge) >=> p
-    retrieveAllEvents :: forall a. (InputStream (i', PersistedEvent e') -> IO a) -> IO a
-    retrieveAllEvents p = retrieveAllEvents' $ SC.map (\(aggregateId, e) -> (gi aggregateId, fmap ge e)) >=> p
+    storeEvents :: i' -> [PersistedEvent i' e'] -> IO ()
+    storeEvents aggregateId =
+        -- To avoid redundant conversions, we 'map' the event
+        -- aggregate IDs by simply replacing them. This is valid since
+        -- the contract specifies that they must all equal the given
+        -- 'aggregateID' parameter. This is strictly a performance
+        -- optimization.
+        storeEvents' aggregateId' . map (bimap (const aggregateId') fe)
+      where
+        aggregateId' = fi aggregateId
+
+    retrieveEvents :: forall a . i' -> Int -> (InputStream (PersistedEvent i' e') -> IO a) -> IO a
+    retrieveEvents aggregateId v0 p =
+      -- To avoid redundant conversions, we 'map' the event aggregate
+      -- IDs by simply replacing them. This is valid since the
+      -- contract specifies that they must all equal the given
+      -- 'aggregateID' parameter. This is strictly a performance
+      -- optimization.
+      retrieveEvents' (fi aggregateId) v0 $ SC.map (bimap (const aggregateId) ge) >=> p
+
+    retrieveAllEvents :: forall a. (InputStream (PersistedEvent i' e') -> IO a) -> IO a
+    retrieveAllEvents p =
+      retrieveAllEvents' $ SC.map (bimap gi ge) >=> p

@@ -55,8 +55,8 @@ mkRunScope' :: Int -> TestKitSettings s (EventStore ByteString ByteString, Snaps
 mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a -> do
   -- We collect all events published by the repository for verification
   publishedEventsRef <- newIORef []
-  let publish (aggregateId, events') = atomicModifyIORef' publishedEventsRef $ \events ->
-        (events ++ map (\(PersistedEvent e s) -> (aggregateId, e, s)) events', ())
+  let publish (_, events') = atomicModifyIORef' publishedEventsRef $ \events ->
+        (events ++ map (\(PersistedEvent e s i) -> (i, e, s)) events', ())
   -- Repository setup
   (eventStore, snapshotStore) <- (tksMakeContext testKitSettings) a
   let settings = setSnapshotFrequency snapshotFrequency $ defaultSettings

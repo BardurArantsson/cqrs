@@ -13,6 +13,7 @@ import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Internal.Tables
 import           Data.CQRS.PostgreSQL.Metadata
+import           Data.Int (Int32)
 import           Data.Time.Clock.POSIX (getPOSIXTime)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           System.IO.Streams (InputStream)
@@ -48,7 +49,7 @@ storeEvents cp tables aggregateId es = do
         execSql sqlInsertEvent
           [ SqlByteArray $ Just aggregateId
           , SqlByteArray $ Just $ peEvent e
-          , SqlInt32 $ Just $ fromIntegral $ peSequenceNumber e
+          , SqlInt32 $ Just $ peSequenceNumber e
           , SqlInt64 $ Just $ timestamp
           ]
 
@@ -65,18 +66,18 @@ storeEvents cp tables aggregateId es = do
            VALUES ($$1, $$2, $$3, $$4)
     |]
 
-retrieveEvents :: Pool Connection -> Tables -> ByteString -> Int -> (InputStream (PersistedEvent ByteString ByteString) -> IO a) -> IO a
+retrieveEvents :: Pool Connection -> Tables -> ByteString -> Int32 -> (InputStream (PersistedEvent ByteString ByteString) -> IO a) -> IO a
 retrieveEvents cp tables aggregateId v0 f =
    runTransactionP cp $ do
      let params = [ SqlByteArray $ Just aggregateId
-                  , SqlInt32 $ Just $ fromIntegral v0
+                  , SqlInt32 $ Just $ v0
                   ]
      query sqlSelectEvent params $ \is ->
        (liftIO $ SC.map unpack is) >>= (liftIO . f)
   where
     unpack [ SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
-           ] = PersistedEvent eventData (fromIntegral sequenceNumber) aggregateId
+           ] = PersistedEvent eventData sequenceNumber aggregateId
     unpack columns = error $ badQueryResultMsg [show aggregateId, show v0] columns
 
     eventTable = tblEvent tables
@@ -98,7 +99,7 @@ retrieveAllEvents cp tables f =
     unpack [ SqlByteArray (Just aggregateId)
            , SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
-           ] = PersistedEvent eventData (fromIntegral sequenceNumber) aggregateId
+           ] = PersistedEvent eventData sequenceNumber aggregateId
     unpack columns = error $ badQueryResultMsg [] columns
 
     eventTable = tblEvent tables

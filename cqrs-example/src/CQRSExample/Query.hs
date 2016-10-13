@@ -17,6 +17,7 @@ import           Control.Monad (forM_, when)
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
 import           Data.CQRS.Query (PersistedEvent(..))
+import           Data.Int (Int32)
 import qualified Data.List as L
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -42,7 +43,7 @@ data QTaskState = QTaskOpen
 -- Queryable state.
 data QueryState = QueryState
     { qTasks :: Map TaskId QTask
-    , qAggregateVersions :: Map TaskId Int
+    , qAggregateVersions :: Map TaskId Int32
     } deriving (Show, Generic)
 
 -- Need NFData instances for deep evaluation.

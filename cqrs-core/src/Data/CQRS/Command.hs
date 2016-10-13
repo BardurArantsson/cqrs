@@ -93,7 +93,7 @@ writeChanges aggregateId aggregate = CommandT $ do
     liftIO $ publishEvents (aggregateId, versionedEvents)
     -- Write out the snapshot (if applicable).
     forM_ (settingsSnapshotFrequency $ repositorySettings repository) $ \snapshotFrequency -> do
-      forM_ (snapshotForAggregate snapshotFrequency) $ \snapshot -> do
+      forM_ (snapshotForAggregate $ fromIntegral snapshotFrequency) $ \snapshot -> do
         liftIO $ ssWriteSnapshot snapshotStore aggregateId snapshot
   where
     snapshotForAggregate maxDelta = join $ (flip fmap) (A.aggregateSnapshot aggregate) $ \(v, a) ->

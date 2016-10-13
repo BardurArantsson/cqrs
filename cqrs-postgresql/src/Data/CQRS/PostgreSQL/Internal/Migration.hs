@@ -8,6 +8,7 @@ import           Control.Monad.IO.Class (liftIO)
 import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Text (Text)
+import           Data.Int (Int32)
 import           Database.PostgreSQL.LibPQ (Connection)
 import qualified System.IO.Streams as Streams
 import qualified System.IO.Streams.Combinators as SC
@@ -65,7 +66,7 @@ applyMigrations c schema migrations = do
 
     extractMetaVersion i = SC.map unpackMetaVersion i >>= Streams.read
 
-    unpackMetaVersion [ SqlInt32 (Just v) ] = fromIntegral v
+    unpackMetaVersion [ SqlInt32 (Just v) ] = v
     unpackMetaVersion columns = error $ badQueryResultMsg [] columns
 
     -- SQL identifiers
@@ -77,7 +78,7 @@ applyMigrations c schema migrations = do
 
     -- Apply meta-migrations for the given base version number. The migration
     -- is skipped if it has been performed before.
-    metaMigrate :: Int -> [Text] -> Transaction ()
+    metaMigrate :: Int32 -> [Text] -> Transaction ()
     metaMigrate metaVersion sqls = do
       -- Get the meta-version; defaults to 0 if we've only just
       -- created the metadata table.
@@ -85,8 +86,8 @@ applyMigrations c schema migrations = do
       -- If the migration is applicable, then we apply it.
       when (currentMetaVersion + 1 == metaVersion) $ do
         forM_ sqls $ \sql -> execSql sql []
-        rowCount <- fmap (maybe 0 id) $ execSql' sqlUpdateMetaVersion [ SqlInt32 $ Just $ fromIntegral metaVersion
-                                                                      , SqlInt32 $ Just $ fromIntegral currentMetaVersion
+        rowCount <- fmap (maybe 0 id) $ execSql' sqlUpdateMetaVersion [ SqlInt32 $ Just metaVersion
+                                                                      , SqlInt32 $ Just currentMetaVersion
                                                                       ]
         when (rowCount /= 1) $ error $ "Unexpected row count " ++ show rowCount ++ " from update on \"migration_meta\" table!"
 

@@ -5,13 +5,14 @@ module Data.CQRS.Types.PersistedEvent
 
 import Control.DeepSeq (NFData(..))
 import Data.Bifunctor (Bifunctor(..))
+import Data.Int (Int32)
 import GHC.Generics (Generic)
 
 -- | Persisted Event.
 data PersistedEvent i e =
-  PersistedEvent { peEvent :: !e            -- ^ Event.
-                 , peSequenceNumber :: !Int -- ^ Sequence number within the aggregate.
-                 , peAggregateId :: !i      -- ^ Identifier of aggregate that event applies to.
+  PersistedEvent { peEvent :: !e              -- ^ Event.
+                 , peSequenceNumber :: !Int32 -- ^ Sequence number within the aggregate.
+                 , peAggregateId :: !i        -- ^ Identifier of aggregate that event applies to.
                  }
   deriving (Show, Eq, Generic)
 

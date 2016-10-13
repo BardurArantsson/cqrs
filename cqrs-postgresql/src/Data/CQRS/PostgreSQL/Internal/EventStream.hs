@@ -33,7 +33,7 @@ readEventStream connectionPool tables maybeStartingPosition f = do
            , SqlByteArray (Just aggregateId)
            , SqlByteArray (Just eventData)
            , SqlInt32 (Just sequenceNumber)
-           ] = (StreamPosition lTimestamp, PersistedEvent eventData (fromIntegral sequenceNumber) aggregateId)
+           ] = (StreamPosition lTimestamp, PersistedEvent eventData sequenceNumber aggregateId)
     unpack columns = error $ badQueryResultMsg [show maybeStartingPosition] columns
     -- SQL
     eventTable = tblEvent tables

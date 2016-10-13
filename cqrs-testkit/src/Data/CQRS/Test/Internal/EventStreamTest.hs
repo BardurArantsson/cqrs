@@ -15,6 +15,7 @@ import           Data.CQRS.Types.EventStream
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StreamPosition
 import           Data.Function (on)
+import           Data.Int (Int32)
 import           Data.List (sortBy)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams as S
@@ -89,9 +90,9 @@ mkEventStreamSpec testKitSettings = do
       aggregateId2 <- randomId
       gpes0_0 <- genEvents aggregateId0 4 0
       gpes1_0 <- genEvents aggregateId1 5 0
-      gpes0_1 <- genEvents aggregateId0 3 (0 + length gpes0_0)
+      gpes0_1 <- genEvents aggregateId0 3 (0 + fromIntegral (length gpes0_0))
       gpes2_0 <- genEvents aggregateId2 90 0
-      gpes1_1 <- genEvents aggregateId1 5 (0 + length gpes1_0)
+      gpes1_1 <- genEvents aggregateId1 5 (0 + fromIntegral (length gpes1_0))
       -- Exercise
       es <- readEventStream Nothing
       -- Verify: All events are there and are in the correct order
@@ -144,7 +145,7 @@ publishEvents aggregateId pes = do
       liftIO $ chunkRandomly n xs
 
 -- Generate and publish a series of events to an aggregate.
-genEvents :: forall i . i -> Int -> Int -> ScopeM (Scope i ByteString) [(i, PersistedEvent i ByteString)]
+genEvents :: forall i . i -> Int32 -> Int32 -> ScopeM (Scope i ByteString) [(i, PersistedEvent i ByteString)]
 genEvents aggregateId n i0 = do
   pes <- liftIO $ genEvents'
   publishEvents aggregateId pes
@@ -152,5 +153,5 @@ genEvents aggregateId n i0 = do
   where
     genEvents' :: IO [PersistedEvent i ByteString]
     genEvents' = do
-      es <- replicateM n $ randomByteString 8
+      es <- replicateM (fromIntegral n) $ randomByteString 8
       return $ map (\(i, e) -> PersistedEvent e (i0 + i) aggregateId) (zip [0..] es)

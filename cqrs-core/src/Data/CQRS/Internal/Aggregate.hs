@@ -16,6 +16,7 @@ import           Data.CQRS.Types.AggregateAction (AggregateAction)
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import qualified Data.Foldable as F
+import           Data.Int (Int32)
 import           Data.Sequence (Seq, (|>))
 import qualified Data.Sequence as S
 import           Data.Typeable (Typeable)
@@ -25,8 +26,8 @@ data Aggregate a e = Aggregate
     { aggregateAction :: AggregateAction a e
     , aggregateValue :: Maybe a
     , aggregateEvents :: Seq e
-    , aggregateVersion0 :: {-# UNPACK #-} !Int
-    , aggregateSnapshotVersion :: {-# UNPACK #-} !Int
+    , aggregateVersion0 :: {-# UNPACK #-} !Int32
+    , aggregateSnapshotVersion :: {-# UNPACK #-} !Int32
     } deriving (Typeable)
 
 -- Make "empty" aggregate for applying snapshots and events to.
@@ -62,14 +63,14 @@ publishEvent a e =
       }
 
 -- Return events with attached version numbers.
-versionedEvents :: Aggregate a e -> [(Int, e)]
+versionedEvents :: Aggregate a e -> [(Int32, e)]
 versionedEvents a = zip [v0+1 ..] evs
   where
     evs = F.toList $ aggregateEvents a
     v0 = aggregateVersion0 a
 
 -- Return a snapshot of the aggregate state.
-aggregateSnapshot :: Aggregate a e -> Maybe (Int, a)
+aggregateSnapshot :: Aggregate a e -> Maybe (Int32, a)
 aggregateSnapshot a = fmap (\av -> (v, av)) (aggregateValue a)
   where
-    v = S.length (aggregateEvents a) + aggregateVersion0 a
+    v = (fromIntegral $ S.length $ aggregateEvents a) + aggregateVersion0 a

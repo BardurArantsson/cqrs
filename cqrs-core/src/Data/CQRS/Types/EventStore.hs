@@ -10,6 +10,7 @@ import           Data.Bifunctor (bimap)
 import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StoreError
+import           Data.Int (Int32)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
@@ -26,7 +27,7 @@ data EventStore i e = EventStore {
       -- Only events at or after the given version number are supplied
       -- by the input stream. The events are supplied in increasing
       -- order of version number.
-      esRetrieveEvents :: forall a . i -> Int -> (InputStream (PersistedEvent i e) -> IO a) -> IO a
+      esRetrieveEvents :: forall a . i -> Int32 -> (InputStream (PersistedEvent i e) -> IO a) -> IO a
     ,
       -- | Read all events from the event store. Events will be
       -- returned in order of increasing version number, grouped by
@@ -54,7 +55,7 @@ transform (fe, ge) (fi, gi) (EventStore storeEvents' retrieveEvents' retrieveAll
       where
         aggregateId' = fi aggregateId
 
-    retrieveEvents :: forall a . i' -> Int -> (InputStream (PersistedEvent i' e') -> IO a) -> IO a
+    retrieveEvents :: forall a . i' -> Int32 -> (InputStream (PersistedEvent i' e') -> IO a) -> IO a
     retrieveEvents aggregateId v0 p =
       -- To avoid redundant conversions, we 'map' the event aggregate
       -- IDs by simply replacing them. This is valid since the

@@ -10,6 +10,7 @@ import           Data.CQRS.Types.SnapshotStore (SnapshotStore(..))
 import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Internal.Tables
 import           Data.CQRS.PostgreSQL.Metadata
+import           Data.Int (Int32)
 import           Data.Pool (Pool)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           NeatInterpolation (text)
@@ -23,8 +24,8 @@ writeSnapshot connectionPool tables aggregateId (Snapshot v d) =
   runTransactionP connectionPool $ do
     execSql upsertSnapshotSql
       [ SqlByteArray $ Just aggregateId
-      , SqlByteArray (Just d)
-      , SqlInt32 $ Just $ fromIntegral v
+      , SqlByteArray $ Just d
+      , SqlInt32 $ Just v
       ]
   where
     snapshotTable = tblSnapshot tables
@@ -43,9 +44,9 @@ readSnapshot :: Pool Connection -> Tables -> ByteString -> IO (Maybe (Snapshot B
 readSnapshot connectionPool tables aggregateId = do
   runTransactionP connectionPool $ do
     -- Unpack columns from result.
-    let unpackColumns :: [SqlValue] -> (ByteString, Int)
+    let unpackColumns :: [SqlValue] -> (ByteString, Int32)
         unpackColumns [ SqlByteArray (Just d)
-                      , SqlInt32 (Just v) ] = (d, fromIntegral v)
+                      , SqlInt32 (Just v) ] = (d, v)
         unpackColumns columns               = error $ badQueryResultMsg [show aggregateId] columns
     -- Run the query.
     r <- query selectSnapshotSql [SqlByteArray $ Just aggregateId] $ \inputStream -> do

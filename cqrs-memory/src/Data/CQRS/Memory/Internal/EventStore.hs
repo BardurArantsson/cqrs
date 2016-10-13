@@ -11,6 +11,7 @@ import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.CQRS.Types.StoreError (StoreError(..))
 import           Data.CQRS.Memory.Internal.Storage
 import qualified Data.Foldable as F
+import           Data.Int (Int32)
 import           Data.List (nub, sortBy)
 import           Data.Ord (comparing)
 import           Data.Sequence (Seq, (><))
@@ -58,7 +59,7 @@ storeEvents (Storage store) aggregateId newEvents = atomically $ do
     lastStoredVersion [ ] = (-1)
     lastStoredVersion es  = maximum $ map peSequenceNumber es
 
-retrieveEvents :: (Eq i) => Storage i e -> i -> Int -> (InputStream (PersistedEvent i e) -> IO a) -> IO a
+retrieveEvents :: (Eq i) => Storage i e -> i -> Int32 -> (InputStream (PersistedEvent i e) -> IO a) -> IO a
 retrieveEvents (Storage store) aggregateId v0 f = do
   events <- fmap F.toList $ atomically $ eventsByAggregateId store aggregateId
   SL.fromList events >>= SC.filter (\e -> peSequenceNumber e > v0) >>= f

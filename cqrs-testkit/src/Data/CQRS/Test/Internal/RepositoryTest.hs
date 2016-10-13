@@ -20,6 +20,7 @@ import           Data.CQRS.Test.Internal.AggregateAction (byteStringAggregateAct
 import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
 import           Data.CQRS.Test.Internal.TestKitSettings
 import           Data.CQRS.Test.Internal.Utils (randomId)
+import           Data.Int (Int32)
 import           Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import           Data.Maybe (fromJust)
 import qualified Test.Hspec as Hspec
@@ -28,11 +29,11 @@ import           Test.HUnit (assertBool)
 
 -- Ambient data for test scope for each spec.
 data Scope i a e = Scope { scopeRepository :: Repository i a e
-                         , scopePublishedEvents :: IORef [(i, e, Int)]
+                         , scopePublishedEvents :: IORef [(i, e, Int32)]
                          }
 
 -- Assert that the given list of events was published.
-assertDidPublish :: (Show e, Eq e, Show i, Eq i) => [(i, e, Int)] -> ScopeM (Scope i a e) ()
+assertDidPublish :: (Show e, Eq e, Show i, Eq i) => [(i, e, Int32)] -> ScopeM (Scope i a e) ()
 assertDidPublish expectedEvents = do
   publishedEventsRef <- fmap scopePublishedEvents $ ask
   verify $ do

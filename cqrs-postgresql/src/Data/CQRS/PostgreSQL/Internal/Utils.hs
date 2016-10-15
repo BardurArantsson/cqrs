@@ -7,6 +7,7 @@ module Data.CQRS.PostgreSQL.Internal.Utils
        , execSql
        , execSql'
        , query
+       , query1
        , isDuplicateKey
        , runQuery         -- For test use only
        , runTransaction
@@ -31,6 +32,7 @@ import           Data.Typeable (Typeable)
 import           Database.PostgreSQL.LibPQ (Connection, Oid(..), Format(..), ExecStatus(..), Column(..), Row(..), FieldCode(..))
 import qualified Database.PostgreSQL.LibPQ as P
 import           GHC.Generics (Generic)
+import qualified System.IO.Streams as Streams
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 import qualified System.IO.Streams.List as SL
@@ -174,6 +176,12 @@ query' :: Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> Transact
 query' sql parameters f = Transaction $ do
   connection <- ask
   lift $ queryImpl connection sql parameters (\n is -> doRunTransaction connection (f n is))
+
+-- | Run a quest which is expected to return at most one result. Any
+-- result rows past the first will be __ignored__.
+query1 :: Text -> [SqlValue] -> Transaction (Maybe [SqlValue])
+query1 sql parameters = do
+  query sql parameters $ (liftIO . Streams.read)
 
 queryImpl :: Connection -> Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> IO a) -> IO a
 queryImpl connection sql parameters f = do

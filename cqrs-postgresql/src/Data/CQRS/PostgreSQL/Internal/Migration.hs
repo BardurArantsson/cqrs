@@ -4,14 +4,11 @@ module Data.CQRS.PostgreSQL.Internal.Migration
     ) where
 
 import           Control.Monad (forM_, when)
-import           Control.Monad.IO.Class (liftIO)
 import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Text (Text)
 import           Data.Int (Int32)
 import           Database.PostgreSQL.LibPQ (Connection)
-import qualified System.IO.Streams as Streams
-import qualified System.IO.Streams.Combinators as SC
 import           NeatInterpolation (text)
 
 -- | Apply a list of migrations to a database. Any
@@ -45,9 +42,8 @@ applyMigrations c schema migrations = do
     let changeSetIdSql = SqlText $ Just changeSetId
     withLock $ do
       -- Check if change set has already been applied
-      existingMigration <- query sqlFindMigration [ changeSetIdSql ] $
-        liftIO . extractMigration changeSetId
-      case existingMigration of
+      existingMigration <- query1 sqlFindMigration [ changeSetIdSql ]
+      case fmap (unpackMigration changeSetId) existingMigration of
         Just (_, sql') | sql == sql' ->
           return () -- Already applied, do nothing
         Just _ ->
@@ -59,12 +55,8 @@ applyMigrations c schema migrations = do
 
   where
 
-    extractMigration changeSetId i = SC.map (unpackMigration changeSetId) i >>= Streams.read
-
     unpackMigration _ [ SqlText (Just changeSetId), SqlText (Just sqlText) ] = (changeSetId, sqlText)
     unpackMigration changeSetId columns = error $ badQueryResultMsg [show changeSetId] columns
-
-    extractMetaVersion i = SC.map unpackMetaVersion i >>= Streams.read
 
     unpackMetaVersion [ SqlInt32 (Just v) ] = v
     unpackMetaVersion columns = error $ badQueryResultMsg [] columns
@@ -82,7 +74,7 @@ applyMigrations c schema migrations = do
     metaMigrate metaVersion sqls = do
       -- Get the meta-version; defaults to 0 if we've only just
       -- created the metadata table.
-      currentMetaVersion <- fmap (maybe 0 id) (query sqlGetMetaVersion [ ] $ liftIO . extractMetaVersion)
+      currentMetaVersion <- fmap (maybe 0 id) . fmap (fmap unpackMetaVersion) $ query1 sqlGetMetaVersion [ ]
       -- If the migration is applicable, then we apply it.
       when (currentMetaVersion + 1 == metaVersion) $ do
         forM_ sqls $ \sql -> execSql sql []

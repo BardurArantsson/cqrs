@@ -6,7 +6,7 @@ module Data.CQRS.PostgreSQL.Internal.UtilsSpec
 import           Control.Exception (bracket)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (isInfixOf)
-import           Data.CQRS.PostgreSQL.Internal.Utils (SqlValue(..), QueryError(..), runQuery, runTransactionP)
+import           Data.CQRS.PostgreSQL.Internal.Utils (SqlValue(..), QueryError(..), runQuery, runTransactionP, query1)
 import           Data.Pool (Pool, destroyAllResources)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           Test.Hspec
@@ -35,6 +35,17 @@ mkUtilsSpec mkConnectionPool = do
     it "produces the correct number of rows" $ withConnectionPool $ do
       x <- runQuery "SELECT GENERATE_SERIES(1,5)" []
       liftIO $ length x `shouldBe` 5
+  describe "query1" $ do
+    it "returns 'Nothing' for unsatisfiable query" $ withConnectionPool $ do
+      x <- query1 "SELECT TRUE WHERE FALSE" []
+      liftIO $ x `shouldBe` Nothing
+    it "returns 'Just x' for a satisfiable query" $ withConnectionPool $ do
+      x <- query1 "SELECT TRUE" []
+      liftIO $ x `shouldBe` Just [SqlBool $ Just True]
+    it "returns first row for multi-row query result" $ withConnectionPool $ do
+      x <- query1 "SELECT GENERATE_SERIES(1 :: Int,5)" []
+      liftIO $ x `shouldBe` Just [SqlInt32 $ Just 1]
+
   where
     withConnectionPool test =
       bracket mkConnectionPool destroyAllResources $

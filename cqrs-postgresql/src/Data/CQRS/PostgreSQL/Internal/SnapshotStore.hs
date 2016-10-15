@@ -3,7 +3,6 @@ module Data.CQRS.PostgreSQL.Internal.SnapshotStore
     ( newSnapshotStore
     ) where
 
-import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.SnapshotStore (SnapshotStore(..))
@@ -14,7 +13,6 @@ import           Data.Int (Int32)
 import           Data.Pool (Pool)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           NeatInterpolation (text)
-import qualified System.IO.Streams as Streams
 
 writeSnapshot :: Pool Connection -> Tables -> ByteString -> Snapshot ByteString -> IO ()
 writeSnapshot connectionPool tables aggregateId (Snapshot v d) =
@@ -49,9 +47,7 @@ readSnapshot connectionPool tables aggregateId = do
                       , SqlInt32 (Just v) ] = (d, v)
         unpackColumns columns               = error $ badQueryResultMsg [show aggregateId] columns
     -- Run the query.
-    r <- query selectSnapshotSql [SqlByteArray $ Just aggregateId] $ \inputStream -> do
-           cs <- liftIO $ Streams.read inputStream
-           return $ fmap unpackColumns cs
+    r <- fmap (fmap unpackColumns) $ query1 selectSnapshotSql [SqlByteArray $ Just aggregateId]
     case r of
       Just (d,v) -> return $ Just $ Snapshot v d
       Nothing    -> return Nothing

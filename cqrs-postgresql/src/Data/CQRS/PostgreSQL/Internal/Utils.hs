@@ -75,7 +75,7 @@ runTransaction connection transaction = do
       catchAny (rollback >> throw e) $ \_ ->
           -- Rethrow original exception; resource pool will make sure the database
           -- connection is properly destroyed (rather than being returned to the
-          -- pool).
+          -- pool in some indeterminate state).
           throw e
 
     begin = run "START TRANSACTION;" [ ]

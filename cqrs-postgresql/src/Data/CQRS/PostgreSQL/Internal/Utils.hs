@@ -1,7 +1,8 @@
-{-# LANGUAGE BangPatterns, DeriveGeneric, OverloadedStrings, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE BangPatterns, DeriveGeneric, OverloadedStrings, GeneralizedNewtypeDeriving, FlexibleContexts, ScopedTypeVariables #-}
 module Data.CQRS.PostgreSQL.Internal.Utils
        ( SqlValue(..)
        , Transaction
+       , TransactionT
        , QueryError(..)
        , badQueryResultMsg
        , execSql
@@ -14,11 +15,12 @@ module Data.CQRS.PostgreSQL.Internal.Utils
        , runTransactionP
        ) where
 
-import           Control.Exception (Exception, throw)
+import           Control.Exception.Lifted (Exception, throwIO)
 import           Control.Exception.Enclosed (catchAny)
 import           Control.Monad (forM, void)
 import           Control.Monad.IO.Class (liftIO, MonadIO)
-import           Control.Monad.Trans.Class (lift)
+import           Control.Monad.Trans.Class (lift, MonadTrans(..))
+import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
 import           Control.Exception (SomeException)
 import qualified Data.ByteString.Char8 as B8
@@ -54,46 +56,53 @@ isDuplicateKey :: QueryError -> Maybe ()
 isDuplicateKey qe | qeSqlState qe == Just "23505" = Just ()
                   | otherwise                     = Nothing
 
+-- | Transaction monad transformer.
+newtype TransactionT m a = TransactionT (ReaderT Connection m a)
+  deriving (Functor, Applicative, Monad)
+
+instance MonadTrans TransactionT where
+  lift m = TransactionT $ lift m
+
+instance MonadIO m => MonadIO (TransactionT m) where
+  liftIO m = TransactionT $ liftIO m
+
 -- | Transaction in PostgreSQL.
-newtype Transaction a = Transaction (ReaderT Connection IO a)
-  deriving (Functor, Applicative, Monad, MonadIO)
+type Transaction a = TransactionT IO a
 
 -- | Run transaction
-runTransaction :: Connection -> Transaction a -> IO a
+runTransaction :: forall a m . (MonadIO m, MonadBaseControl IO m) => Connection -> TransactionT m a -> m a
 runTransaction connection transaction = do
   begin
   catchAny runAction tryRollback
   where
+    runAction :: m a
     runAction = do
       r <- doRunTransaction connection transaction
       commit
       return r
 
-    tryRollback :: SomeException -> IO a
+    tryRollback :: SomeException -> m a
     tryRollback e =
       -- Try explicit rollback; we want to preserve original exception.
-      catchAny (rollback >> throw e) $ \_ ->
+      catchAny (rollback >> throwIO e) $ \_ ->
           -- Rethrow original exception; resource pool will make sure the database
           -- connection is properly destroyed (rather than being returned to the
           -- pool in some indeterminate state).
-          throw e
+          throwIO e
 
-    begin = run "START TRANSACTION;" [ ]
-    commit = run "COMMIT TRANSACTION;" [ ]
-    rollback = run "ROLLBACK TRANSACTION;" [ ]
-
-    run sql parameters =
-      queryImpl connection sql parameters (\_ _ -> return ())
+    begin = execSqlImpl connection "START TRANSACTION;" [ ]
+    commit = execSqlImpl connection "COMMIT TRANSACTION;" [ ]
+    rollback = execSqlImpl connection "ROLLBACK TRANSACTION;" [ ]
 
 -- | Perform the actions inside a Transaction on a connection WITHOUT
 -- wrapping in any TRANSACTION statements.
-doRunTransaction :: Connection -> Transaction a -> IO a
-doRunTransaction connection (Transaction t) = do
+doRunTransaction :: Connection -> TransactionT m a -> m a
+doRunTransaction connection (TransactionT t) = do
   runReaderT t connection
 
 -- | Run a transaction with a connection from the given resource pool
 -- and return the connection when the transaction ends.
-runTransactionP :: Pool Connection -> Transaction a -> IO a
+runTransactionP :: forall a m . (MonadIO m, MonadBaseControl IO m) => Pool Connection -> TransactionT m a -> m a
 runTransactionP pool action = withResource pool $ (flip runTransaction) action
 
 -- | Read a boolean.
@@ -151,11 +160,11 @@ toSqlValue (oid, mvalue) =
             Just _  -> return $ construct mvalue'
 
 -- | Execute a query with no result.
-execSql :: Text -> [SqlValue] -> Transaction ()
+execSql :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> TransactionT m ()
 execSql sql parameters = void $ execSql' sql parameters
 
 -- | Execute a query an return the number of updated rows (if available).
-execSql' :: Text -> [SqlValue] -> Transaction (Maybe Int)
+execSql' :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> TransactionT m (Maybe Int)
 execSql' sql parameters = query' sql parameters (\n _ -> return n)
 
 -- | Error happened during query.
@@ -169,30 +178,34 @@ instance Exception QueryError
 
 -- | Run a query and fold over the results. The action receives an
 -- 'InputStream' over all the rows in the result.
-query :: Text -> [SqlValue] -> (InputStream [SqlValue] -> Transaction a) -> Transaction a
+query :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> (InputStream [SqlValue] -> TransactionT m a) -> TransactionT m a
 query sql parameters f = query' sql parameters $ \_ is -> f is
 
-query' :: Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> Transaction a) -> Transaction a
-query' sql parameters f = Transaction $ do
+query' :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> TransactionT m a) -> TransactionT m a
+query' sql parameters f = TransactionT $ do
   connection <- ask
   lift $ queryImpl connection sql parameters (\n is -> doRunTransaction connection (f n is))
 
 -- | Run a quest which is expected to return at most one result. Any
 -- result rows past the first will be __ignored__.
-query1 :: Text -> [SqlValue] -> Transaction (Maybe [SqlValue])
+query1 :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> TransactionT m (Maybe [SqlValue])
 query1 sql parameters = do
   query sql parameters $ (liftIO . Streams.read)
 
-queryImpl :: Connection -> Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> IO a) -> IO a
+execSqlImpl :: (MonadIO m, MonadBaseControl IO m) => Connection -> Text -> [SqlValue] -> m ()
+execSqlImpl connection sql parameters =
+  queryImpl connection sql parameters (\_ _ -> pure ())
+
+queryImpl :: forall m a . (MonadIO m, MonadBaseControl IO m) => Connection -> Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> m a) -> m a
 queryImpl connection sql parameters f = do
   -- Run the query
-  r <- open
+  r <- liftIO $ open
   -- Check the status
-  status <- P.resultStatus r
+  status <- liftIO $ P.resultStatus r
   if isOk status
     then do
       -- How many rows affected?
-      cmdTuples <- P.cmdTuples r
+      cmdTuples <- liftIO $ P.cmdTuples r
       n <- case cmdTuples of
         Nothing -> return Nothing
         Just x -> return $ fmap fst $ readDecimal x
@@ -200,13 +213,13 @@ queryImpl connection sql parameters f = do
       makeInputStream r >>= f n
     else do
       -- Throw exception
-      sqlState <- P.resultErrorField r DiagSqlstate
-      statusMessage <- P.resStatus status
-      errorMessage <- P.resultErrorMessage r
-      throw $ QueryError { qeSqlState = sqlState
-                         , qeStatusMessage = statusMessage
-                         , qeErrorMessage = errorMessage
-                         }
+      sqlState <- liftIO $ P.resultErrorField r DiagSqlstate
+      statusMessage <- liftIO $ P.resStatus status
+      errorMessage <- liftIO $ P.resultErrorMessage r
+      throwIO $ QueryError { qeSqlState = sqlState
+                           , qeStatusMessage = statusMessage
+                           , qeErrorMessage = errorMessage
+                           }
 
   where
     isOk CommandOk = True
@@ -220,9 +233,10 @@ queryImpl connection sql parameters f = do
         Nothing -> error "No result set; something is very wrong"
         Just r -> return r
 
+    makeInputStream :: P.Result -> m (InputStream [SqlValue])
     makeInputStream r = do
-      Col nFields <- P.nfields r
-      Row nRows <- P.ntuples r
+      Col nFields <- liftIO $ P.nfields r
+      Row nRows <- liftIO $ P.ntuples r
       let columns = map P.toColumn [0.. nFields - 1]
       let loop i = if i >= nRows
                      then do
@@ -230,7 +244,7 @@ queryImpl connection sql parameters f = do
                      else do
                        columnValues <- forM columns $ getSqlVal r $ P.toRow i
                        return $ Just (columnValues, i + 1)
-      SC.unfoldM loop 0
+      liftIO $ SC.unfoldM loop 0
 
     getSqlVal r row c = do
       mval <- P.getvalue' r row c
@@ -238,7 +252,7 @@ queryImpl connection sql parameters f = do
       toSqlValue (typ, mval)
 
 -- Run a query and result a list of the rows in the result.
-runQuery :: Text -> [SqlValue] -> Transaction [[SqlValue]]
+runQuery :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> TransactionT m [[SqlValue]]
 runQuery sql parameters = query sql parameters (liftIO . SL.toList)
 
 -- | Format a message indicating a bad query result due to the "shape".

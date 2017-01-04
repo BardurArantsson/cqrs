@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Data.CQRS.PostgreSQL.Migrations
     ( migrate
     ) where

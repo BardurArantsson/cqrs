@@ -1,4 +1,5 @@
-{-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.Types.EventStream
        ( EventStream(..)
        , transform

@@ -1,4 +1,9 @@
-{-# LANGUAGE BangPatterns, DeriveGeneric, OverloadedStrings, GeneralizedNewtypeDeriving, FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.PostgreSQL.Internal.Utils
        ( SqlValue(..)
        , Transaction

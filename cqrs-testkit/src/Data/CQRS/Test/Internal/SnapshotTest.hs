@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.CQRS.Test.Internal.SnapshotTest
     ( mkSnapshotStoreSpec
     ) where

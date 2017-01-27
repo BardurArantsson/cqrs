@@ -42,29 +42,29 @@ data EventStore i e = EventStore {
 -- be used to add serialization/deserialization to event stores which
 -- do not support storing anything other than binary data.
 transform :: forall e' e i' i . Iso e' e -> Iso i' i -> EventStore i e -> EventStore i' e'
-transform (fe, ge) (fi, gi) (EventStore storeEvents' retrieveEvents' retrieveAllEvents') =
-    EventStore storeEvents retrieveEvents retrieveAllEvents
+transform (fe, ge) (fi, gi) (EventStore storeEvents retrieveEvents retrieveAllEvents) =
+    EventStore storeEvents' retrieveEvents' retrieveAllEvents'
   where
-    storeEvents :: i' -> [PersistedEvent i' e'] -> IO ()
-    storeEvents aggregateId =
+    storeEvents' :: i' -> [PersistedEvent i' e'] -> IO ()
+    storeEvents' aggregateId' =
         -- To avoid redundant conversions, we 'map' the event
         -- aggregate IDs by simply replacing them. This is valid since
         -- the contract specifies that they must all equal the given
         -- 'aggregateID' parameter. This is strictly a performance
         -- optimization.
-        storeEvents' aggregateId' . map (bimap (const aggregateId') fe)
+        storeEvents aggregateId . map (bimap (const aggregateId) fe)
       where
-        aggregateId' = fi aggregateId
+        aggregateId = fi aggregateId'
 
-    retrieveEvents :: forall a . i' -> Int32 -> (InputStream (PersistedEvent i' e') -> IO a) -> IO a
-    retrieveEvents aggregateId v0 p =
+    retrieveEvents' :: forall a . i' -> Int32 -> (InputStream (PersistedEvent i' e') -> IO a) -> IO a
+    retrieveEvents' aggregateId' v0 p' =
       -- To avoid redundant conversions, we 'map' the event aggregate
       -- IDs by simply replacing them. This is valid since the
       -- contract specifies that they must all equal the given
       -- 'aggregateID' parameter. This is strictly a performance
       -- optimization.
-      retrieveEvents' (fi aggregateId) v0 $ SC.map (bimap (const aggregateId) ge) >=> p
+      retrieveEvents (fi aggregateId') v0 $ SC.map (bimap (const aggregateId') ge) >=> p'
 
-    retrieveAllEvents :: forall a. (InputStream (PersistedEvent i' e') -> IO a) -> IO a
-    retrieveAllEvents p =
-      retrieveAllEvents' $ SC.map (bimap gi ge) >=> p
+    retrieveAllEvents' :: forall a. (InputStream (PersistedEvent i' e') -> IO a) -> IO a
+    retrieveAllEvents' p' =
+      retrieveAllEvents $ SC.map (bimap gi ge) >=> p'

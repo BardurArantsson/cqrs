@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Data.CQRS.PostgreSQL.Internal.MigrationSpec
     ( mkApplyMigrationsSpec

@@ -245,5 +245,4 @@ loadAggregate aggregateId = liftM get $ runCommandT $ C.readAggregate aggregateI
 
 -- Get aggregate's value, if the aggregate exists
 findAggregate :: i -> ScopeM (Scope i a e) (Maybe a)
-findAggregate = do
-  runCommandT . (flip C.updateAggregate) id
+findAggregate = runCommandT . C.readAggregate

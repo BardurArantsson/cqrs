@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Data.CQRS.Test.Internal.RepositoryTest
     ( mkRepositorySpec
@@ -238,10 +239,9 @@ newAggregate es = do
 
 -- Load an aggregate value.
 loadAggregate :: i -> ScopeM (Scope i a e) a
-loadAggregate aggregateId = liftM get $ runCommandT $ C.readAggregate aggregateId
-    where
-      get Nothing  = error $ "loadAggregate: Missing expected aggregate"
-      get (Just a) = a
+loadAggregate aggregateId = findAggregate aggregateId >>= \case
+  Nothing  -> error $ "loadAggregate: Missing expected aggregate"
+  (Just a) -> return a
 
 -- Get aggregate's value, if the aggregate exists
 findAggregate :: i -> ScopeM (Scope i a e) (Maybe a)

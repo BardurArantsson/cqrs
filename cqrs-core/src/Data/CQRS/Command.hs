@@ -160,10 +160,10 @@ updateAggregate aggregateId unitOfWork = CommandT $ do
       unUnitOfWorkT $ unitOfWork $ UnitOfWorkT getter
 
 -- | Read value of an aggregate if it exists. If any update needs to
--- be performed on the aggregate, use of the 'getter' function (see
--- 'createAggregate' and 'updateAggregate') should be preferred.
+-- be performed on the aggregate, 'createAggregate' and 'updateAggregate'
+-- should be used.
 readAggregate :: (MonadIO m) => i -> CommandT i a e m (Maybe a)
-readAggregate = (flip updateAggregate) id
+readAggregate = CommandT . liftM A.aggregateValue . getByIdFromEventStore
 
 -- Retrieve aggregate from event store.
 getByIdFromEventStore :: (MonadIO m) => i -> CommandM i a e m (Aggregate a e)

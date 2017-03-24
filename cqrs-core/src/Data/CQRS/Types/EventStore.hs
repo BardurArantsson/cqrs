@@ -41,8 +41,8 @@ data EventStore i e = EventStore {
 -- implementation of 'EventStore j b' via two isomorphisms. This can
 -- be used to add serialization/deserialization to event stores which
 -- do not support storing anything other than binary data.
-transform :: forall e' e i' i . Iso e' e -> Iso i' i -> EventStore i e -> EventStore i' e'
-transform (fe, ge) (fi, gi) (EventStore storeEvents retrieveEvents retrieveAllEvents) =
+transform :: forall e' e i' i . Iso i' i -> Iso e' e -> EventStore i e -> EventStore i' e'
+transform (fi, gi) (fe, ge) (EventStore storeEvents retrieveEvents retrieveAllEvents) =
     EventStore storeEvents' retrieveEvents' retrieveAllEvents'
   where
     storeEvents' :: i' -> [PersistedEvent i' e'] -> IO ()

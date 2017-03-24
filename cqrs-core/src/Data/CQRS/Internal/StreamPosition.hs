@@ -3,6 +3,7 @@ module Data.CQRS.Internal.StreamPosition
        ( StreamPosition(..)
        , streamPositionToBytes
        , bytesToStreamPosition
+       , infimum
        ) where
 
 import           Control.DeepSeq (NFData)
@@ -12,6 +13,11 @@ import qualified Data.ByteString as B
 import           Data.Int (Int64)
 import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
+
+-- | The position before the first StreamPosition. All other
+-- 'StreamPosition' values compare as greater than this value.
+infimum :: StreamPosition
+infimum = StreamPosition (-1)
 
 -- | A stream position is an implementation-defined
 -- representation of the position in an 'EventStream'.

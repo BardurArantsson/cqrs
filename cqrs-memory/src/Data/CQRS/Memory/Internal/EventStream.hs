@@ -15,16 +15,12 @@ import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 import qualified System.IO.Streams.List as SL
 
-readEventStream :: forall i e a . Storage i e -> Maybe StreamPosition -> (InputStream (StreamPosition, PersistedEvent i e) -> IO a) -> IO a
-readEventStream (Storage store) p0 f = do
+readEventStream :: forall i e a . Storage i e -> StreamPosition -> (InputStream (StreamPosition, PersistedEvent i e) -> IO a) -> IO a
+readEventStream (Storage store) (StreamPosition sp0) f = do
     -- Take a snapshot of all the events in the store
     allEvents <- liftM msEvents $ readTVarIO store
-    -- What is the starting position?
-    let t0 = case p0 of
-               Just (StreamPosition i) -> i
-               Nothing                 -> 0 -- Beginning of time
     -- Filter out irrelevant events
-    let events = filter (\(Event _ t) -> t > t0) $ F.toList allEvents
+    let events = filter (\(Event _ t) -> t > sp0) $ F.toList allEvents
     -- Start streaming events.
     SL.fromList events >>= SC.map reformat >>= f
   where

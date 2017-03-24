@@ -18,15 +18,11 @@ import           NeatInterpolation (text)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
-readEventStream :: Pool Connection -> Tables -> Maybe StreamPosition -> (InputStream (StreamPosition, PersistedEvent ByteString ByteString) -> IO a) -> IO a
-readEventStream connectionPool tables maybeStartingPosition f = do
-  -- Figure out the starting position
-  let i0 = case maybeStartingPosition of
-             Just (StreamPosition i) -> i
-             Nothing                 -> 0 -- BIGSERIAL starts at 1
+readEventStream :: Pool Connection -> Tables -> StreamPosition -> (InputStream (StreamPosition, PersistedEvent ByteString ByteString) -> IO a) -> IO a
+readEventStream connectionPool tables sp@(StreamPosition sp0) f = do
   -- Run the query
   runTransactionP connectionPool $ do
-    query sqlReadEvents [ SqlInt64 $ Just i0 ] $ \is -> do
+    query sqlReadEvents [ SqlInt64 $ Just sp0 ] $ \is -> do
       (liftIO $ SC.map unpack is) >>= (liftIO . f)
   where
     -- Unpack result columns
@@ -35,7 +31,7 @@ readEventStream connectionPool tables maybeStartingPosition f = do
            , SqlByteArray (Just eventData)
            , SqlInt32 (Just sequenceNumber)
            ] = (StreamPosition lTimestamp, PersistedEvent eventData sequenceNumber aggregateId)
-    unpack columns = error $ badQueryResultMsg [show maybeStartingPosition] columns
+    unpack columns = error $ badQueryResultMsg [show sp] columns
     -- SQL
     eventTable = tblEvent tables
 

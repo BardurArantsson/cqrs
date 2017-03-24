@@ -11,8 +11,7 @@ import           Data.CQRS.SnapshotStore (nullSnapshotStore)
 import qualified Data.CQRS.Repository as R
 import           Data.CQRS.Types.EventStream (EventStream(..))
 import           Data.CQRS.Types.PersistedEvent
-import           Data.CQRS.Types.StreamPosition (StreamPosition)
-import           Data.Maybe (isJust)
+import           Data.CQRS.Types.StreamPosition (StreamPosition, infimum)
 import           Network.Wai.EventSource (ServerEvent(..))
 import qualified System.IO.Streams as Streams
 import           System.IO.Streams (InputStream)
@@ -44,9 +43,9 @@ eventSourcingThread qs eventStream serverEvents publishedEvents = do
   -- applied to the Query sate. The other thread just processes events
   -- published by the repository. This latter thread never terminates
   -- unless an exception is thrown.
-  void $ concurrently (pollEventStream Nothing) processPublishedEvents
+  void $ concurrently (pollEventStream infimum) processPublishedEvents
   where
-    pollEventStream :: Maybe StreamPosition -> IO ()
+    pollEventStream :: StreamPosition -> IO ()
     pollEventStream p0 = do
       putStrLn "Polling event stream..."
       -- Process all the events.
@@ -55,7 +54,7 @@ eventSourcingThread qs eventStream serverEvents publishedEvents = do
           processEvents (peAggregateId event) [event]
           return p
       -- Next starting position?
-      let pn = if isJust p1 then p1 else p0
+      let pn = maybe p0 id p1
       -- Go again after a while.
       threadDelay 30000000
       pollEventStream pn

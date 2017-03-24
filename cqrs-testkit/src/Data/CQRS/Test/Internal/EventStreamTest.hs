@@ -52,15 +52,15 @@ storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ (esStoreEvents eventStore) aggregateId events
 
-readEventStream' :: Maybe StreamPosition -> (InputStream (StreamPosition, PersistedEvent i e) -> IO a) -> ScopeM (Scope i e) a
-readEventStream' maybeStartPosition f = do
+readEventStream' :: StreamPosition -> (InputStream (StreamPosition, PersistedEvent i e) -> IO a) -> ScopeM (Scope i e) a
+readEventStream' startPosition f = do
   eventStream <- fmap scopeEventStream ask
-  liftIO $ (esReadEventStream eventStream) maybeStartPosition f
+  liftIO $ (esReadEventStream eventStream) startPosition f
 
-readEventStream :: Maybe StreamPosition -> ScopeM (Scope i e) [(i, PersistedEvent i e)]
-readEventStream maybeStartPosition = do
+readEventStream :: StreamPosition -> ScopeM (Scope i e) [(i, PersistedEvent i e)]
+readEventStream startPosition = do
   eventStream <- fmap scopeEventStream ask
-  liftIO $ (esReadEventStream eventStream) maybeStartPosition (SC.map dropStreamPosition) >>= SL.toList
+  liftIO $ (esReadEventStream eventStream) startPosition (SC.map dropStreamPosition) >>= SL.toList
   where
     dropStreamPosition (_, e) = (peAggregateId e, e)
 
@@ -81,7 +81,7 @@ mkEventStreamSpec testKitSettings = do
       let expectedEvents' = map snd expectedEvents
       storeEvents aggregateId expectedEvents'
       -- Exercise
-      es <- readEventStream Nothing
+      es <- readEventStream infimum
       -- Verify
       verify $ es `shouldHaveEventsEquivalentTo` expectedEvents
 
@@ -96,7 +96,7 @@ mkEventStreamSpec testKitSettings = do
       gpes2_0 <- genEvents aggregateId2 90 0
       gpes1_1 <- genEvents aggregateId1 5 (0 + fromIntegral (length gpes1_0))
       -- Exercise
-      es <- readEventStream Nothing
+      es <- readEventStream infimum
       -- Verify: All events are there and are in the correct order
       -- wrt. each individual aggregate.
       let gpes = concat [ gpes0_0, gpes0_1, gpes1_0, gpes1_1, gpes2_0 ]
@@ -113,12 +113,12 @@ mkEventStreamSpec testKitSettings = do
                            ]
       storeEvents aggregateId $ map snd expectedEvents
       -- Setup: Read until we've seen two events
-      p0 <- readEventStream' Nothing $ \is -> do
+      p0 <- readEventStream' infimum $ \is -> do
                 _           <- S.read is -- Read & ignore first event
                 Just (p, _) <- S.read is -- Grab the position of the second event
                 return p
       -- Exercise
-      es <- readEventStream $ Just p0
+      es <- readEventStream p0
       -- Verify: Should have everything except the first two events
       verify $ es `shouldHaveEventsEquivalentTo` (drop 2 expectedEvents)
 

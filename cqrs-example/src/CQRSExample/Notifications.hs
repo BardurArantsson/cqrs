@@ -5,7 +5,7 @@ module CQRSExample.Notifications
     ) where
 
 import           Data.Aeson (ToJSON(..), object, (.=))
-import           Data.CQRS.Query (PersistedEvent(..))
+import           Data.CQRS.Types.PersistedEvent
 import qualified Data.Foldable as F
 import           Data.Monoid ((<>))
 import           Data.Sequence (Seq)

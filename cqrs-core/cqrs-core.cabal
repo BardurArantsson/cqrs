@@ -27,7 +27,6 @@ Library
   hs-source-dirs:      src
   Exposed-modules:     Data.CQRS.Command
                        Data.CQRS.Repository
-                       Data.CQRS.Query
                        Data.CQRS.SnapshotStore
                        Data.CQRS.Internal.Aggregate
                        Data.CQRS.Internal.Repository

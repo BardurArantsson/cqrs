@@ -16,7 +16,7 @@ import           Control.DeepSeq (NFData(..), ($!!))
 import           Control.Monad (forM_, when)
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
-import           Data.CQRS.Query (PersistedEvent(..))
+import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.Int (Int32)
 import qualified Data.List as L
 import           Data.Map.Strict (Map)

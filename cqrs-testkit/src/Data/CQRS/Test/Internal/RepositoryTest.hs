@@ -13,8 +13,8 @@ import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString as B
 import           Data.CQRS.Command (CommandT)
 import qualified Data.CQRS.Command as C
-import           Data.CQRS.Query
 import           Data.CQRS.Repository
+import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.EventStore (EventStore)
 import           Data.CQRS.Types.SnapshotStore (nullSnapshotStore, SnapshotStore)
 import           Data.CQRS.Test.Internal.AggregateAction (byteStringAggregateAction)

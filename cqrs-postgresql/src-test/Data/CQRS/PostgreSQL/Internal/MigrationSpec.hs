@@ -79,7 +79,7 @@ mkApplyMigrationsSpec mkConnectionPool = do
 
     assertValidQuery connectionPool sql = do
       runTransactionP connectionPool $ do
-        rows <- runQuery sql []
+        rows <- queryAll sql []
         liftIO $ rows `shouldSatisfy` (\rs -> length rs >= 0) -- Don't care about size of result, just that query succeeded
 
     createXSql = "CREATE TABLE X (A INT)"

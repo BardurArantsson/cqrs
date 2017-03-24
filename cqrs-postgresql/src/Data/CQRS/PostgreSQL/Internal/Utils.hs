@@ -15,7 +15,7 @@ module Data.CQRS.PostgreSQL.Internal.Utils
        , query
        , query1
        , isDuplicateKey
-       , runQuery         -- For test use only
+       , queryAll
        , runTransaction
        , runTransactionP
        ) where
@@ -256,9 +256,11 @@ queryImpl connection sql parameters f = do
       typ <- P.ftype r c
       toSqlValue (typ, mval)
 
--- Run a query and result a list of the rows in the result.
-runQuery :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> TransactionT m [[SqlValue]]
-runQuery sql parameters = query sql parameters (liftIO . SL.toList)
+-- Run a query and return a list of the rows in the result. __This will read
+-- ALL rows in the result into memory. It is ONLY meant for testing unless
+-- you're ABSOLUTELY SURE that you won't end up using too much memory!__
+queryAll :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> TransactionT m [[SqlValue]]
+queryAll sql parameters = query sql parameters (liftIO . SL.toList)
 
 -- | Format a message indicating a bad query result due to the "shape".
 badQueryResultMsg :: [String] -> [SqlValue] -> String

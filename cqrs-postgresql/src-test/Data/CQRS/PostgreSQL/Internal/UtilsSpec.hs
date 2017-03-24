@@ -6,7 +6,7 @@ module Data.CQRS.PostgreSQL.Internal.UtilsSpec
 import           Control.Exception (bracket)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (isInfixOf)
-import           Data.CQRS.PostgreSQL.Internal.Utils (SqlValue(..), QueryError(..), runQuery, runTransactionP, query1)
+import           Data.CQRS.PostgreSQL.Internal.Utils (SqlValue(..), QueryError(..), queryAll, runTransactionP, query1)
 import           Data.Pool (Pool, destroyAllResources)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           Test.Hspec
@@ -16,16 +16,16 @@ mkUtilsSpec :: IO (Pool Connection) -> Spec
 mkUtilsSpec mkConnectionPool = do
   describe "single-result query" $ do
     it "produces a result (non-parametric)" $ withConnectionPool $ do
-      x <- runQuery "SELECT TRUE" []
+      x <- queryAll "SELECT TRUE" []
       liftIO $ length x `shouldBe` 1
     it "produces a result (parametric)" $ withConnectionPool $ do
-      x <- runQuery "SELECT TRUE WHERE $1" [SqlBool $ Just True]
+      x <- queryAll "SELECT TRUE WHERE $1" [SqlBool $ Just True]
       liftIO $ length x `shouldBe` 1
     it "produces no results if unsatisfiable" $ withConnectionPool $ do
-      x <- runQuery "SELECT TRUE WHERE FALSE" []
+      x <- queryAll "SELECT TRUE WHERE FALSE" []
       liftIO $ length x `shouldBe` 0
     it "throws a QueryError when invalid SQL statement is executed" $ do
-      (withConnectionPool $ runQuery "MY BAD QUERY" []) `shouldThrow` (\e ->
+      (withConnectionPool $ queryAll "MY BAD QUERY" []) `shouldThrow` (\e ->
         case e of
           QueryError (Just "42601") "PGRES_FATAL_ERROR" (Just msg) | "MY BAD QUERY" `isInfixOf` msg ->
             True
@@ -33,7 +33,7 @@ mkUtilsSpec mkConnectionPool = do
             False)
   describe "multi-result query" $ do
     it "produces the correct number of rows" $ withConnectionPool $ do
-      x <- runQuery "SELECT GENERATE_SERIES(1,5)" []
+      x <- queryAll "SELECT GENERATE_SERIES(1,5)" []
       liftIO $ length x `shouldBe` 5
   describe "query1" $ do
     it "returns 'Nothing' for unsatisfiable query" $ withConnectionPool $ do

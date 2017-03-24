@@ -30,7 +30,7 @@ import           Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
 import           Control.Exception (SomeException)
 import qualified Data.ByteString.Char8 as B8
 import           Data.ByteString (ByteString)
-import           Data.ByteString.Lex.Integral (readDecimal)
+import           Data.ByteString.Lex.Integral (readDecimal, readSigned)
 import           Data.Int (Int16, Int32, Int64)
 import           Data.Pool (Pool, withResource)
 import           Data.Text (Text)
@@ -145,9 +145,9 @@ toSqlValue (oid, mvalue) =
   case oid of
     Oid 17 -> c P.unescapeBytea SqlByteArray
     Oid 16 -> c (return . readBoolean) SqlBool
-    Oid 20 -> c (return . fmap fst . readDecimal) SqlInt64
-    Oid 21 -> c (return . fmap fst . readDecimal) SqlInt16
-    Oid 23 -> c (return . fmap fst . readDecimal) SqlInt32
+    Oid 20 -> c (return . fmap fst . readSigned readDecimal) SqlInt64
+    Oid 21 -> c (return . fmap fst . readSigned readDecimal) SqlInt16
+    Oid 23 -> c (return . fmap fst . readSigned readDecimal) SqlInt32
     Oid 25 -> c (return . either (const Nothing) Just . decodeUtf8') SqlText
     Oid 1042 -> c (return . Just) SqlBlankPaddedString
     Oid 1043 -> c (return . either (const Nothing) Just . decodeUtf8') SqlVarChar

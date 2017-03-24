@@ -25,8 +25,8 @@ data EventStream i e = EventStream {
 
 -- | Transform 'EventStream' via an isomorphism for the events and
 -- aggregate IDs.
-transform :: forall e e' i i' . Iso e' e -> Iso i' i -> EventStream i e -> EventStream i' e'
-transform (_, g) (_, gi) (EventStream readEventStream') =
+transform :: forall e e' i i' . Iso i' i -> Iso e' e -> EventStream i e -> EventStream i' e'
+transform (_, gi) (_, g) (EventStream readEventStream') =
     EventStream readEventStream
   where
     readEventStream :: StreamPosition -> (InputStream (StreamPosition, PersistedEvent i' e') -> IO a) -> IO a

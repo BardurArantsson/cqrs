@@ -82,7 +82,7 @@ runTransaction connection transaction = do
   where
     runAction :: m a
     runAction = do
-      r <- doRunTransaction connection transaction
+      r <- unsafeRunTransaction connection transaction
       commit
       return r
 
@@ -101,8 +101,8 @@ runTransaction connection transaction = do
 
 -- | Perform the actions inside a Transaction on a connection WITHOUT
 -- wrapping in any TRANSACTION statements.
-doRunTransaction :: Connection -> TransactionT m a -> m a
-doRunTransaction connection (TransactionT t) = do
+unsafeRunTransaction :: Connection -> TransactionT m a -> m a
+unsafeRunTransaction connection (TransactionT t) = do
   runReaderT t connection
 
 -- | Run a transaction with a connection from the given resource pool
@@ -189,7 +189,7 @@ query sql parameters f = query' sql parameters $ \_ is -> f is
 query' :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> TransactionT m a) -> TransactionT m a
 query' sql parameters f = TransactionT $ do
   connection <- ask
-  lift $ queryImpl connection sql parameters (\n is -> doRunTransaction connection (f n is))
+  lift $ queryImpl connection sql parameters (\n is -> unsafeRunTransaction connection (f n is))
 
 -- | Run a quest which is expected to return at most one result. Any
 -- result rows past the first will be __ignored__.

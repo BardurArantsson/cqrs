@@ -21,8 +21,6 @@ Library
                     , cqrs-core >= 0.11.0 && < 0.12.0
                     , enclosed-exceptions >= 1.0.1 && < 2
                     , io-streams >= 1.2 && < 2
-                    , lifted-base >= 0.2.3.8 && < 0.3
-                    , monad-control >= 1.0.1 && < 1.1
                     , neat-interpolation >= 0.3.2 && < 0.4
                     , resource-pool >= 0.2.1 && < 0.3
                     , postgresql-libpq >= 0.9.0.1 && < 0.10

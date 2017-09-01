@@ -6,29 +6,27 @@ module Data.CQRS.PostgreSQL.Internal.Transaction
        , runTransactionP
        ) where
 
-import           Control.Exception.Lifted (throwIO)
+import           Control.Exception (throwIO)
 import           Control.Exception.Enclosed (catchAny)
 import           Control.Monad (void)
-import           Control.Monad.IO.Class (MonadIO)
-import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Control.Exception (SomeException)
 import           Data.CQRS.PostgreSQL.Internal.Query
 import           Data.Pool (Pool, withResource)
 import           Database.PostgreSQL.LibPQ (Connection)
 
 -- | Run query in a transaction.
-runTransaction :: forall a m . (MonadIO m, MonadBaseControl IO m) => Connection -> QueryT m a -> m a
+runTransaction :: forall a . Connection -> QueryT IO a -> IO a
 runTransaction connection q = do
   begin
   catchAny runAction tryRollback
   where
-    runAction :: m a
+    runAction :: IO a
     runAction = do
       r <- unsafeRunQueryT connection q
       commit
       return r
 
-    tryRollback :: SomeException -> m a
+    tryRollback :: SomeException -> IO a
     tryRollback e =
       -- Try explicit rollback; we want to preserve original exception.
       catchAny (rollback >> throwIO e) $ \_ ->
@@ -45,5 +43,5 @@ runTransaction connection q = do
 
 -- | Run a transaction with a connection from the given resource pool
 -- and return the connection when the transaction ends.
-runTransactionP :: forall a m . (MonadIO m, MonadBaseControl IO m) => Pool Connection -> QueryT m a -> m a
+runTransactionP :: Pool Connection -> QueryT IO a -> IO a
 runTransactionP pool action = withResource pool $ flip runTransaction action

@@ -5,7 +5,7 @@ module Data.CQRS.PostgreSQL.Internal.QueryError
        , isDuplicateKey
        ) where
 
-import           Control.Exception.Lifted (Exception)
+import           Control.Exception (Exception)
 import           Data.ByteString (ByteString)
 import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)

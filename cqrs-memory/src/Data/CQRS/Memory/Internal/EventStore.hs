@@ -35,8 +35,8 @@ storeEvents (Storage store) chunk = atomically $ do
         -- Tag all the events with our wrapper
         let newTaggedEvents = map (\(e,ts) -> Event aggregateId e ts) (zip (F.toList newEvents) [baseTimestamp..]) in
         -- Update the storage
-        ms { msEvents = (msEvents ms) >< (S.fromList newTaggedEvents)
-           , msCurrentTimestamp = baseTimestamp + (fromIntegral $ length newTaggedEvents)
+        ms { msEvents = msEvents ms >< S.fromList newTaggedEvents
+           , msCurrentTimestamp = baseTimestamp + fromIntegral (length newTaggedEvents)
            }
 
     runSanityChecks = do
@@ -44,11 +44,11 @@ storeEvents (Storage store) chunk = atomically $ do
       events <- eventsByAggregateId store aggregateId
       -- Check for duplicates in the input list itself
       let newSequenceNumbers = F.toList $ fmap peSequenceNumber newEvents
-      when ((nub newSequenceNumbers) /= newSequenceNumbers) $ throwSTM $ VersionConflict aggregateId
+      when (nub newSequenceNumbers /= newSequenceNumbers) $ throwSTM $ VersionConflict aggregateId
       -- Check for duplicate events
       let eventSequenceNumbers = F.toList $ fmap peSequenceNumber events
-      forM_ newSequenceNumbers $ \newSequenceNumber -> do
-        when (elem newSequenceNumber eventSequenceNumbers) $
+      forM_ newSequenceNumbers $ \newSequenceNumber ->
+        when (newSequenceNumber `elem` eventSequenceNumbers) $
              throwSTM $ VersionConflict aggregateId
       -- Check version numbers; this exists as a sanity check for tests
       let vE = lastStoredVersion $ F.toList events
@@ -58,7 +58,7 @@ storeEvents (Storage store) chunk = atomically $ do
                    minimum $ fmap peSequenceNumber newEvents
       when (v0 /= vE + 1) $ error "Mismatched version numbers"
 
-    lastStoredVersion [ ] = (-1)
+    lastStoredVersion [ ] = -1
     lastStoredVersion es  = maximum $ map peSequenceNumber es
 
     (aggregateId, newEvents) = C.toList chunk
@@ -87,8 +87,8 @@ eventsByAggregateId store aggregateId = do
 
 -- | Create a memory-backend event store.
 newEventStore :: (Show i, Ord i, Typeable i) => Storage i e -> IO (EventStore i e)
-newEventStore storage = do
-  return $ EventStore
+newEventStore storage =
+  return EventStore
     { esStoreEvents = storeEvents storage
     , esRetrieveEvents = retrieveEvents storage
     , esRetrieveAllEvents = retrieveAllEvents storage

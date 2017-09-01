@@ -93,7 +93,7 @@ qCompletedTaskIdList = do
       p (QTask _ _ QTaskArchived) = False
 
 reactToEvents :: TaskId -> [PersistedEvent TaskId Event] -> QueryM ()
-reactToEvents aggregateId evs = do
+reactToEvents aggregateId evs =
   -- Just handle each event separately; in real production code
   -- updates should probably be batched to avoid excessive IO
   -- operations.

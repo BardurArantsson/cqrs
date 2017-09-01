@@ -4,11 +4,13 @@ module Data.CQRS.PostgreSQL.Internal.Migration
     ( applyMigrations
     ) where
 
+import           Control.Applicative ((<$>))
 import           Control.Monad (forM_, when)
 import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Text (Text)
 import           Data.Int (Int32)
+import           Data.Maybe (fromMaybe)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           NeatInterpolation (text)
 
@@ -30,7 +32,7 @@ applyMigrations c schema migrations = do
   forM_ sqlCreateSchema $ \s -> runTransaction c $ execSql s [ ]
   runTransaction c $ execSql sqlCreateMetaTbl [ ]
   -- Apply meta-migrations.
-  withLock $ do
+  withLock $
     -- Apply meta-migrations; these are hardcoded for obvious reasons.
     -- EXCEPT for the very first migration, NO changes may be made to
     -- the "migration_meta" table in any migration here. This is to
@@ -75,13 +77,13 @@ applyMigrations c schema migrations = do
     metaMigrate metaVersion sqls = do
       -- Get the meta-version; defaults to 0 if we've only just
       -- created the metadata table.
-      currentMetaVersion <- fmap (maybe 0 id) . fmap (fmap unpackMetaVersion) $ query1 sqlGetMetaVersion [ ]
+      currentMetaVersion <- maybe 0 unpackMetaVersion <$> query1 sqlGetMetaVersion [ ]
       -- If the migration is applicable, then we apply it.
       when (currentMetaVersion + 1 == metaVersion) $ do
         forM_ sqls $ \sql -> execSql sql []
-        rowCount <- fmap (maybe 0 id) $ execSql' sqlUpdateMetaVersion [ SqlInt32 $ Just metaVersion
-                                                                      , SqlInt32 $ Just currentMetaVersion
-                                                                      ]
+        rowCount <- fromMaybe 0 <$> execSql' sqlUpdateMetaVersion [ SqlInt32 $ Just metaVersion
+                                                                  , SqlInt32 $ Just currentMetaVersion
+                                                                  ]
         when (rowCount /= 1) $ error $ "Unexpected row count " ++ show rowCount ++ " from update on \"migration_meta\" table!"
 
     -- Perform a transaction with the exclusive lock held. The lock is
@@ -97,7 +99,7 @@ applyMigrations c schema migrations = do
       CREATE TABLE IF NOT EXISTS $migrationMetaTableSql ("meta_version" INTEGER PRIMARY KEY)
     |]
 
-    sqlCreateSchema = (flip fmap) migrationSchemaSql $ \s -> [text|
+    sqlCreateSchema = flip fmap migrationSchemaSql $ \s -> [text|
       CREATE SCHEMA IF NOT EXISTS $s
     |]
 

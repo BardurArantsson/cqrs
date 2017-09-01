@@ -5,6 +5,8 @@ module Data.CQRS.Types.EventStream
        , transform
        ) where
 
+import           Control.Arrow (second)
+import           Control.Monad ((>=>))
 import           Data.Bifunctor (bimap)
 import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
@@ -13,7 +15,7 @@ import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
 -- | EventStream for events of type 'e' identified by aggregate IDs of type 'i'.
-data EventStream i e = EventStream {
+newtype EventStream i e = EventStream {
       -- | Read the event stream, starting __immediately after__ the
       -- given position. The order is arbitrary-but-consistent such
       -- that all events for any given aggregate are always read in
@@ -30,6 +32,5 @@ transform (_, gi) (_, g) (EventStream readEventStream') =
     EventStream readEventStream
   where
     readEventStream :: StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i' e') -> IO a) -> IO a
-    readEventStream p' f = do
-      readEventStream' p' $ \is -> do
-        SC.map (\(p, e) -> (p, bimap gi g e)) is >>= f
+    readEventStream p' f =
+      readEventStream' p' $ SC.map (second $ bimap gi g) >=> f

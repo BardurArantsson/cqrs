@@ -40,5 +40,5 @@ main = do
                               return (es, ss)
                         }
      mkSnapshotStoreSpec $ testKitSettings {
-                               tksMakeContext = \_ -> newSnapshotStore
+                               tksMakeContext = const newSnapshotStore
                            }

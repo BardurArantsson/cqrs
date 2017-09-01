@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main ( main ) where
 
+import           Control.Applicative ((<$>))
 import           Control.Monad (forM_)
 import qualified Database.PostgreSQL.LibPQ as P
 import           Data.CQRS.PostgreSQL ( newEventStore
@@ -32,7 +33,7 @@ main = do
   -- Connection pool creation function. We use a fresh temporary
   -- database for every connection pool.
   let mkConnectionPool = do
-        connectionString <- fmap H.toConnectionString $ H.createTemporaryDatabase url
+        connectionString <- H.toConnectionString <$> H.createTemporaryDatabase url
         createPool (P.connectdb connectionString) P.finish 1 1 5
   -- Make sure we test both in the default schema and with a named schema
   forM_ [DefaultSchema, NamedSchema "foobar"] $ \schema -> do
@@ -41,7 +42,7 @@ main = do
          { tksMakeContext = \_ -> return ()
          , tksSetUp = do
              connectionPool <- mkConnectionPool
-             withResource connectionPool (\c -> migrate c schema)
+             withResource connectionPool (`migrate` schema)
              return connectionPool
          , tksTearDown = destroyAllResources
          }
@@ -50,10 +51,10 @@ main = do
        mkUtilsSpec mkConnectionPool
        mkApplyMigrationsSpec mkConnectionPool
        mkSnapshotStoreSpec $ testKitSettings {
-                                 tksMakeContext = \c -> newSnapshotStore c schema
+                                 tksMakeContext = (`newSnapshotStore` schema)
                              }
        mkEventStoreSpec $ testKitSettings {
-                              tksMakeContext = \c -> newEventStore c schema
+                              tksMakeContext = (`newEventStore` schema)
                           }
        mkEventStreamSpec $ testKitSettings {
                                tksMakeContext = \c -> do

@@ -1,9 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Data.CQRS.PostgreSQL.Internal.SnapshotStore
     ( newSnapshotStore
     ) where
 
+import           Control.Applicative ((<$>))
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.SnapshotStore (SnapshotStore(..))
@@ -20,7 +20,7 @@ writeSnapshot connectionPool tables aggregateId (Snapshot v d) =
   -- We ignore the possibility of data races with others trying to
   -- update the same snapshot since snapshots aren't important enough
   -- to merit the extra complexity.
-  runTransactionP connectionPool $ do
+  runTransactionP connectionPool $
     execSql upsertSnapshotSql
       [ SqlByteArray $ Just aggregateId
       , SqlByteArray $ Just d
@@ -40,7 +40,7 @@ writeSnapshot connectionPool tables aggregateId (Snapshot v d) =
     |]
 
 readSnapshot :: Pool Connection -> Tables -> ByteString -> IO (Maybe (Snapshot ByteString))
-readSnapshot connectionPool tables aggregateId = do
+readSnapshot connectionPool tables aggregateId =
   runTransactionP connectionPool $ do
     -- Unpack columns from result.
     let unpackColumns :: [SqlValue] -> (ByteString, Int32)
@@ -48,7 +48,7 @@ readSnapshot connectionPool tables aggregateId = do
                       , SqlInt32 (Just v) ] = (d, v)
         unpackColumns columns               = error $ badQueryResultMsg [show aggregateId] columns
     -- Run the query.
-    r <- fmap (fmap unpackColumns) $ query1 selectSnapshotSql [SqlByteArray $ Just aggregateId]
+    r <- fmap unpackColumns <$> query1 selectSnapshotSql [SqlByteArray $ Just aggregateId]
     case r of
       Just (d,v) -> return $ Just $ Snapshot v d
       Nothing    -> return Nothing
@@ -64,10 +64,9 @@ readSnapshot connectionPool tables aggregateId = do
 
 -- | Create an snapshot store backed by a PostgreSQL connection pool.
 newSnapshotStore :: Pool Connection -> Schema -> IO (SnapshotStore ByteString ByteString)
-newSnapshotStore connectionPool schema = do
+newSnapshotStore connectionPool schema =
   return $ SnapshotStore
     (writeSnapshot connectionPool tables)
     (readSnapshot connectionPool tables)
   where
     tables = mkTables schema
-

@@ -4,8 +4,8 @@ module Data.CQRS.Memory.Internal.EventStream
     , newEventStream
     ) where
 
+import           Control.Applicative ((<$>))
 import           Control.Concurrent.STM.TVar (readTVarIO)
-import           Control.Monad (liftM)
 import           Data.CQRS.Types.EventStream
 import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Internal.StreamPosition
@@ -18,7 +18,7 @@ import qualified System.IO.Streams.List as SL
 readEventStream :: forall i e a . Storage i e -> StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i e) -> IO a) -> IO a
 readEventStream (Storage store) (StreamPosition sp0) f = do
     -- Take a snapshot of all the events in the store
-    allEvents <- liftM msEvents $ readTVarIO store
+    allEvents <- msEvents <$> readTVarIO store
     -- Filter out irrelevant events
     let events = filter (\(Event _ _ t) -> t > sp0) $ F.toList allEvents
     -- Start streaming events.
@@ -28,7 +28,7 @@ readEventStream (Storage store) (StreamPosition sp0) f = do
     reformat (Event i e p) = (StreamPosition p, grow i e)
 
 newEventStream :: Storage i e -> IO (EventStream i e)
-newEventStream storage = do
-  return $ EventStream
+newEventStream storage =
+  return EventStream
     { esReadEventStream = readEventStream storage
     }

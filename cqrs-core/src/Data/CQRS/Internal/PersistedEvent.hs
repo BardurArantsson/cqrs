@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Data.CQRS.Internal.PersistedEvent
        ( PersistedEvent(..)
@@ -39,7 +38,7 @@ instance (NFData e, NFData i) => NFData (PersistedEvent' i e)
 
 -- | Augment a 'PersistedEvent' with an aggregate ID to form a 'PersistedEvent\''.
 grow :: i -> PersistedEvent i e -> PersistedEvent' i e
-grow i pe = PersistedEvent' i pe
+grow = PersistedEvent'
 
 -- | Shrink a 'PersistedEvent\'' to form a 'PersistedEvent'.
 shrink :: PersistedEvent' i e -> PersistedEvent i e

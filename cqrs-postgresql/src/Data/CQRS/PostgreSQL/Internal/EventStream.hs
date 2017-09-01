@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Data.CQRS.PostgreSQL.Internal.EventStream
     ( newEventStream
@@ -19,11 +18,10 @@ import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
 readEventStream :: Pool Connection -> Tables -> StreamPosition -> (InputStream (StreamPosition, PersistedEvent' ByteString ByteString) -> IO a) -> IO a
-readEventStream connectionPool tables sp@(StreamPosition sp0) f = do
-  -- Run the query
-  runTransactionP connectionPool $ do
-    query sqlReadEvents [ SqlInt64 $ Just sp0 ] $ \is -> do
-      (liftIO $ SC.map unpack is) >>= (liftIO . f)
+readEventStream connectionPool tables sp@(StreamPosition sp0) f =
+  runTransactionP connectionPool $
+    query sqlReadEvents [ SqlInt64 $ Just sp0 ] $ \is ->
+      liftIO (SC.map unpack is) >>= (liftIO . f)
   where
     -- Unpack result columns
     unpack [ SqlInt64 (Just lTimestamp)
@@ -44,8 +42,8 @@ readEventStream connectionPool tables sp@(StreamPosition sp0) f = do
     |]
 
 newEventStream :: Pool Connection -> Schema -> IO (EventStream ByteString ByteString)
-newEventStream connectionPool schema = do
-  return $ EventStream
+newEventStream connectionPool schema =
+  return EventStream
     { esReadEventStream = readEventStream connectionPool tables
     }
   where

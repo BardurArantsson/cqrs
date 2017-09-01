@@ -24,14 +24,14 @@ mkUtilsSpec mkConnectionPool = do
     it "produces no results if unsatisfiable" $ withConnectionPool $ do
       x <- queryAll "SELECT TRUE WHERE FALSE" []
       liftIO $ length x `shouldBe` 0
-    it "throws a QueryError when invalid SQL statement is executed" $ do
-      (withConnectionPool $ queryAll "MY BAD QUERY" []) `shouldThrow` (\e ->
+    it "throws a QueryError when invalid SQL statement is executed" $
+      withConnectionPool (queryAll "MY BAD QUERY" []) `shouldThrow` (\e ->
         case e of
           QueryError (Just "42601") "PGRES_FATAL_ERROR" (Just msg) | "MY BAD QUERY" `isInfixOf` msg ->
             True
           _ ->
             False)
-  describe "multi-result query" $ do
+  describe "multi-result query" $
     it "produces the correct number of rows" $ withConnectionPool $ do
       x <- queryAll "SELECT GENERATE_SERIES(1,5)" []
       liftIO $ length x `shouldBe` 5
@@ -49,4 +49,4 @@ mkUtilsSpec mkConnectionPool = do
   where
     withConnectionPool test =
       bracket mkConnectionPool destroyAllResources $
-        (flip runTransactionP) test
+        flip runTransactionP test

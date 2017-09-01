@@ -51,14 +51,14 @@ applySnapshot a0 (Just s) =
 -- Apply event from event store to aggregate. The event will not be published.
 applyEvent :: Aggregate a e -> PersistedEvent i e -> Aggregate a e
 applyEvent a pe =
-    a { aggregateValue = Just $ (aggregateAction a) (aggregateValue a) $ peEvent pe
+    a { aggregateValue = Just $ aggregateAction a (aggregateValue a) $ peEvent pe
       , aggregateVersion0 = max (peSequenceNumber pe) (aggregateVersion0 a)
       }
 
 -- Publish event to aggregate.
 publishEvent :: (NFData e, NFData a) => Aggregate a e -> e -> Int64 -> Aggregate a e
 publishEvent a e ts =
-    a { aggregateValue = Just $!! (aggregateAction a) (aggregateValue a) e
+    a { aggregateValue = Just $!! aggregateAction a (aggregateValue a) e
       , aggregateEvents = (|>) (aggregateEvents a) $!! (e, ts)
       }
 
@@ -73,4 +73,4 @@ versionedEvents a = zip [v0+1 ..] evs
 aggregateSnapshot :: Aggregate a e -> Maybe (Int32, a)
 aggregateSnapshot a = fmap (\av -> (v, av)) (aggregateValue a)
   where
-    v = (fromIntegral $ S.length $ aggregateEvents a) + aggregateVersion0 a
+    v = fromIntegral (S.length $ aggregateEvents a) + aggregateVersion0 a

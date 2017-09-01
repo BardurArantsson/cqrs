@@ -3,8 +3,8 @@ module CQRSExample.Json
        ( qTaskListJson
        ) where
 
+import           Control.Applicative ((<$>))
 import           Control.Concurrent.STM.TVar (TVar)
-import           Control.Monad (liftM)
 import           Data.Aeson (ToJSON(..), Value)
 import           Data.Aeson.Types (object, Value(..))
 
@@ -12,11 +12,11 @@ import           CQRSExample.Query
 
 -- Generate a list of JSONable values by mapping a function on a query.
 qListToJson :: QueryM [a] -> (a -> b) -> TVar QueryState -> IO [b]
-qListToJson q f p = liftM (map f) $ runQuery p q
+qListToJson q f p = map f <$> runQuery p q
 
 -- Query the task list, producing JSON.
 qTaskListJson :: TVar QueryState -> IO [Value]
-qTaskListJson qs = qListToJson qTaskList f qs
+qTaskListJson = qListToJson qTaskList f
     where
       f (tid, title, state) =
           object [ ("id", toJSON tid)

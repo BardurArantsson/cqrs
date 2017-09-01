@@ -11,6 +11,7 @@ import           Data.ByteString.Lex.Integral (readDecimal, packDecimal)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import           Data.Int (Int64)
+import           Data.Maybe (fromMaybe)
 import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
 
@@ -32,9 +33,9 @@ instance NFData StreamPosition
 -- and no other type of manipulation of the data is defined.
 streamPositionToBytes :: StreamPosition -> ByteString
 streamPositionToBytes (StreamPosition i) =
-    case packDecimal i of
-      Just s -> s
-      Nothing -> error $ "positionToBytes: position was negative: " ++ show i
+  fromMaybe
+    (error $ "positionToBytes: position was negative: " ++ show i)
+    (packDecimal i)
 
 -- | Convert a 'ByteString' to a 'StreamPosition'. The 'ByteString'
 -- __MUST__ ultimately have been obtained through a call to

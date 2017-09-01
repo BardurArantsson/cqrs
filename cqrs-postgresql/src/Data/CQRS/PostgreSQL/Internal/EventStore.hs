@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Data.CQRS.PostgreSQL.Internal.EventStore
        ( newEventStore
@@ -39,10 +38,10 @@ import           NeatInterpolation (text)
 -- performs cannot see A's events because READ COMMITTED doesn't
 -- permit it, even if the events were inserts.
 storeEvents :: Pool Connection -> Tables -> Chunk ByteString ByteString -> IO ()
-storeEvents cp tables chunk = do
-  translateExceptions aggregateId $ do
-    runTransactionP cp $ do
-      forM_ events $ \e -> do
+storeEvents cp tables chunk =
+  translateExceptions aggregateId $
+    runTransactionP cp $
+      forM_ events $ \e ->
         -- Insert. We ignore the aggregateID specified on the actual
         -- events because it must (by contract) be exactly the same as
         -- the 'aggregateId' parameter.
@@ -71,10 +70,10 @@ retrieveEvents :: Pool Connection -> Tables -> ByteString -> Int32 -> (InputStre
 retrieveEvents cp tables aggregateId v0 f =
    runTransactionP cp $ do
      let params = [ SqlByteArray $ Just aggregateId
-                  , SqlInt32 $ Just $ v0
+                  , SqlInt32 $ Just v0
                   ]
      query sqlSelectEvent params $ \is ->
-       (liftIO $ SC.map unpack is) >>= (liftIO . f)
+       liftIO (SC.map unpack is) >>= (liftIO . f)
   where
     unpack [ SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
@@ -94,9 +93,9 @@ retrieveEvents cp tables aggregateId v0 f =
 
 retrieveAllEvents :: Pool Connection -> Tables -> (InputStream (PersistedEvent' ByteString ByteString) -> IO a) -> IO a
 retrieveAllEvents cp tables f =
-  runTransactionP cp $ do
+  runTransactionP cp $
     query sqlSelectAllEvents [ ] $ \is ->
-      (liftIO $ SC.map unpack is) >>= (liftIO . f)
+      liftIO (SC.map unpack is) >>= (liftIO . f)
   where
     unpack [ SqlByteArray (Just aggregateId)
            , SqlInt32 (Just sequenceNumber)
@@ -117,11 +116,11 @@ retrieveAllEvents cp tables f =
 -- The database which the connections go to must have an appropriate
 -- schema as defined by 'applyMigrations'.
 newEventStore :: Pool Connection -> Schema -> IO (EventStore ByteString ByteString)
-newEventStore connectionPool schema = do
-  return $ EventStore
-             { esStoreEvents = storeEvents connectionPool tables
-             , esRetrieveEvents = retrieveEvents connectionPool tables
-             , esRetrieveAllEvents = retrieveAllEvents connectionPool tables
-             }
+newEventStore connectionPool schema =
+  return EventStore
+    { esStoreEvents = storeEvents connectionPool tables
+    , esRetrieveEvents = retrieveEvents connectionPool tables
+    , esRetrieveAllEvents = retrieveAllEvents connectionPool tables
+    }
   where
     tables = mkTables schema

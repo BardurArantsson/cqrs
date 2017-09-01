@@ -16,7 +16,6 @@ data TestKitSettings a ctx = TestKitSettings
 -- the setUp and tearDown phases happen no matter what else
 -- happens during the computation.
 mkBracket :: TestKitSettings a ctx -> (a -> IO b) -> IO b
-mkBracket testKitSettings action =
+mkBracket testKitSettings =
     bracket (tksSetUp testKitSettings)
             (tksTearDown testKitSettings)
-            action

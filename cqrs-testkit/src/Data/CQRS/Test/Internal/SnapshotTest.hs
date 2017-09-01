@@ -29,14 +29,14 @@ readSnapshot aggregateId = do
 
 -- Test suite for memory backend.
 mkSnapshotStoreSpec :: TestKitSettings a (SnapshotStore ByteString ByteString) -> Spec
-mkSnapshotStoreSpec testKitSettings = do
+mkSnapshotStoreSpec testKitSettings =
 
   describe "SnapshotStore" $ do
 
     it "writing first snapshot works" $ do
       aggregateId <- randomId
       -- Write the snapshot.
-      let rs = (Snapshot 3 "Hello, world")
+      let rs = Snapshot 3 "Hello, world"
       writeSnapshot aggregateId rs
       -- Read the snapshot.
       rs' <- readSnapshot aggregateId
@@ -46,8 +46,8 @@ mkSnapshotStoreSpec testKitSettings = do
     it "updating snapshot overwrites existing one" $ do
       aggregateId <- randomId
       -- Write snapshot "twice"
-      let rs1 = (Snapshot 3 "Hello")
-      let rs2 = (Snapshot 4 "Goodbye")
+      let rs1 = Snapshot 3 "Hello"
+      let rs2 = Snapshot 4 "Goodbye"
       writeSnapshot aggregateId rs1
       writeSnapshot aggregateId rs2
       -- Read latest snapshot

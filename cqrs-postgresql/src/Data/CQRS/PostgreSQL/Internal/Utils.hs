@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -102,13 +101,13 @@ runTransaction connection transaction = do
 -- | Perform the actions inside a Transaction on a connection WITHOUT
 -- wrapping in any TRANSACTION statements.
 unsafeRunTransaction :: Connection -> TransactionT m a -> m a
-unsafeRunTransaction connection (TransactionT t) = do
+unsafeRunTransaction connection (TransactionT t) =
   runReaderT t connection
 
 -- | Run a transaction with a connection from the given resource pool
 -- and return the connection when the transaction ends.
 runTransactionP :: forall a m . (MonadIO m, MonadBaseControl IO m) => Pool Connection -> TransactionT m a -> m a
-runTransactionP pool action = withResource pool $ (flip runTransaction) action
+runTransactionP pool action = withResource pool $ flip runTransaction action
 
 -- | Read a boolean.
 readBoolean :: ByteString -> Maybe Bool
@@ -118,7 +117,7 @@ readBoolean _ = Nothing
 
 -- | Map an SqlValue to a parameter.
 fromSqlValue :: Connection -> SqlValue -> IO (Maybe (Oid, ByteString, Format))
-fromSqlValue connection (SqlByteArray a) = do
+fromSqlValue connection (SqlByteArray a) =
   case a of
     Nothing -> return Nothing
     Just a' -> do
@@ -194,8 +193,8 @@ query' sql parameters f = TransactionT $ do
 -- | Run a quest which is expected to return at most one result. Any
 -- result rows past the first will be __ignored__.
 query1 :: (MonadIO m, MonadBaseControl IO m) => Text -> [SqlValue] -> TransactionT m (Maybe [SqlValue])
-query1 sql parameters = do
-  query sql parameters $ (liftIO . Streams.read)
+query1 sql parameters =
+  query sql parameters (liftIO . Streams.read)
 
 execSqlImpl :: (MonadIO m, MonadBaseControl IO m) => Connection -> Text -> [SqlValue] -> m ()
 execSqlImpl connection sql parameters =
@@ -204,7 +203,7 @@ execSqlImpl connection sql parameters =
 queryImpl :: forall m a . (MonadIO m, MonadBaseControl IO m) => Connection -> Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> m a) -> m a
 queryImpl connection sql parameters f = do
   -- Run the query
-  r <- liftIO $ open
+  r <- liftIO open
   -- Check the status
   status <- liftIO $ P.resultStatus r
   if isOk status
@@ -213,7 +212,7 @@ queryImpl connection sql parameters f = do
       cmdTuples <- liftIO $ P.cmdTuples r
       n <- case cmdTuples of
         Nothing -> return Nothing
-        Just x -> return $ fmap fst $ readDecimal x
+        Just x -> return $ fst <$> readDecimal x
       -- Create the input stream and feed it to 'f'
       makeInputStream r >>= f n
     else do
@@ -221,10 +220,10 @@ queryImpl connection sql parameters f = do
       sqlState <- liftIO $ P.resultErrorField r DiagSqlstate
       statusMessage <- liftIO $ P.resStatus status
       errorMessage <- liftIO $ P.resultErrorMessage r
-      throwIO $ QueryError { qeSqlState = sqlState
-                           , qeStatusMessage = statusMessage
-                           , qeErrorMessage = errorMessage
-                           }
+      throwIO QueryError { qeSqlState = sqlState
+                         , qeStatusMessage = statusMessage
+                         , qeErrorMessage = errorMessage
+                         }
 
   where
     isOk CommandOk = True
@@ -244,7 +243,7 @@ queryImpl connection sql parameters f = do
       Row nRows <- liftIO $ P.ntuples r
       let columns = map P.toColumn [0.. nFields - 1]
       let loop i = if i >= nRows
-                     then do
+                     then
                        return Nothing
                      else do
                        columnValues <- forM columns $ getSqlVal r $ P.toRow i

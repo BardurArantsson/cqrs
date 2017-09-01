@@ -5,6 +5,7 @@ module Data.CQRS.Types.SnapshotStore
     , nullSnapshotStore
     ) where
 
+import Control.Applicative ((<$>))
 import Data.CQRS.Types.Snapshot (Snapshot(..))
 import Data.CQRS.Types.Iso
 
@@ -32,14 +33,15 @@ data SnapshotStore i a = SnapshotStore
 -- tags/hashes to determine compatibility with stored snapshots.
 transform :: forall a a' i i' . (a' -> a, a -> Maybe a') -> Iso i' i -> SnapshotStore i a -> SnapshotStore i' a'
 transform (fa, ga) (fi, _) (SnapshotStore writeSnapshot' readSnapshot') =
-    SnapshotStore writeSnapshot readSnapshot
+  SnapshotStore writeSnapshot readSnapshot
     where
       writeSnapshot :: i' -> Snapshot a' -> IO ()
-      writeSnapshot aggregateId (Snapshot v a) = do
-          writeSnapshot' (fi aggregateId) $ Snapshot v $ fa a
+      writeSnapshot aggregateId (Snapshot v a) =
+        writeSnapshot' (fi aggregateId) $ Snapshot v $ fa a
+
       readSnapshot :: i' -> IO (Maybe (Snapshot a'))
-      readSnapshot aggregateId = do
-          fmap (f' =<<) $ readSnapshot' (fi aggregateId)
+      readSnapshot aggregateId =
+        (f' =<<) <$> readSnapshot' (fi aggregateId)
           where
             f' (Snapshot v a) = ga a >>= Just . Snapshot v
 

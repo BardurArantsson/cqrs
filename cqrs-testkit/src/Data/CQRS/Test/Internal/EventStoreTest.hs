@@ -21,8 +21,8 @@ import qualified Test.Hspec as Hspec
 import qualified System.IO.Streams.List as SL
 
 -- Ambient data for test scope for each spec.
-data Scope i e = Scope { scopeEventStore :: EventStore i e
-                       }
+newtype Scope i e = Scope { scopeEventStore :: EventStore i e
+                          }
 
 -- Store given events in exactly the order given.
 storeEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
@@ -34,11 +34,11 @@ storeEvents aggregateId events = do
 readEvents :: i -> ScopeM (Scope i e) [PersistedEvent i e]
 readEvents aggregateId = do
   eventStore <- fmap scopeEventStore ask
-  liftIO $ ES.esRetrieveEvents eventStore aggregateId (-1) $ SL.toList
+  liftIO $ ES.esRetrieveEvents eventStore aggregateId (-1) SL.toList
 
 -- Test suite for event store which stores 'ByteString' events.
 mkEventStoreSpec :: TestKitSettings a (EventStore ByteString ByteString) -> Spec
-mkEventStoreSpec testKitSettings = do
+mkEventStoreSpec testKitSettings =
 
   describe "EventStore implementation" $ do
 
@@ -76,7 +76,7 @@ mkEventStoreSpec testKitSettings = do
       -- Make sure we didn't write the second event
       storedEvents <- readEvents aggregateId
       verify $ length storedEvents `shouldBe` 1
-      verify $ (storedEvents !! 0) `shouldBe` initialEvent
+      verify $ head storedEvents `shouldBe` initialEvent
 
   where
     runScope = S.mkRunScope testKitSettings $ \a -> do
@@ -86,5 +86,5 @@ mkEventStoreSpec testKitSettings = do
     it msg scope = Hspec.it msg $ runScope scope
 
     shouldThrow action exc = do
-      resultOrExc <- try $ action
-      liftIO $ resultOrExc `shouldBe` (Left exc)
+      resultOrExc <- try action
+      liftIO $ resultOrExc `shouldBe` Left exc

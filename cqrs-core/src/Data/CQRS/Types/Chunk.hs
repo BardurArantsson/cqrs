@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Data.CQRS.Types.Chunk
     ( Chunk
@@ -8,6 +7,7 @@ module Data.CQRS.Types.Chunk
     , toList
     ) where
 
+import           Control.Applicative ((<$>))
 import           Control.DeepSeq (NFData(..))
 import           Data.Bifunctor (Bifunctor(..))
 import           GHC.Generics (Generic)
@@ -30,11 +30,11 @@ instance (NFData e, NFData i) => NFData (Chunk i e)
 
 -- | Create a chunk from an aggregate ID and a list of events.
 fromList :: i -> [PersistedEvent i e] -> Maybe (Chunk i e)
-fromList i es = fmap (fromNonEmpty i) $ NEL.nonEmpty es
+fromList i es = fromNonEmpty i <$> NEL.nonEmpty es
 
 -- | Create a chunk from an aggregate ID and a non-empty list of events.
 fromNonEmpty :: i -> NonEmpty (PersistedEvent i e) -> Chunk i e
-fromNonEmpty i es = Chunk i es
+fromNonEmpty = Chunk
 
 -- | Group events into chunks based on aggregate ID.
 chunks :: Eq i => NonEmpty (PersistedEvent' i e) -> NonEmpty (Chunk i e)

@@ -20,7 +20,7 @@ getMillis (Clock get) = get
 -- | Create a 'Clock' from an arbitrary IO action
 -- returning the number of elapsed milliseconds since the epoch.
 mkClock :: IO Int64 -> Clock
-mkClock get = Clock get
+mkClock = Clock
 
 -- | A 'Clock' which returns the current system time from the
 -- operating system. The resolution of the clock is determined by the
@@ -41,5 +41,5 @@ operatingSystemClock = mkClock get
 autoIncrementingClock :: Int64 -> Int64 -> IO Clock
 autoIncrementingClock start increment = do
   value <- newIORef start
-  return $ mkClock $ do
+  return $ mkClock $
     atomicModifyIORef' value (\ts -> (ts + increment, ts))

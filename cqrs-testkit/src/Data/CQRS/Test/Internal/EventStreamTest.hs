@@ -61,20 +61,19 @@ storeEvents' eventStore aggregateId events =
 readEventStream' :: StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i e) -> IO a) -> ScopeM (Scope i e) a
 readEventStream' startPosition f = do
   eventStream <- fmap scopeEventStream ask
-  liftIO $ (esReadEventStream eventStream) startPosition f
+  liftIO $ esReadEventStream eventStream startPosition f
 
 readEventStream :: StreamPosition -> ScopeM (Scope i e) [(i, PersistedEvent i e)]
 readEventStream startPosition = do
   eventStream <- fmap scopeEventStream ask
-  liftIO $ (esReadEventStream eventStream) startPosition (SC.map dropStreamPosition) >>= SL.toList
+  liftIO $ esReadEventStream eventStream startPosition (SC.map dropStreamPosition) >>= SL.toList
   where
     dropStreamPosition (_, e) = (pepAggregateId e, shrink e)
 
 -- Given test kit settings, create the full spec for testing the event
 -- stream implementation against those settings.
 mkEventStreamSpec :: TestKitSettings a (EventStream ByteString ByteString, EventStore ByteString ByteString) -> Spec
-mkEventStreamSpec testKitSettings = do
-  -- Tests:
+mkEventStreamSpec testKitSettings =
   describe "EventStream implementation" $ do
     it "should support enumeration from the beginning" $ do
       -- Setup
@@ -125,7 +124,7 @@ mkEventStreamSpec testKitSettings = do
       -- Exercise
       es <- readEventStream p0
       -- Verify: Should have everything except the first two events
-      verify $ es `shouldHaveEventsEquivalentTo` (drop 2 expectedEvents)
+      verify $ es `shouldHaveEventsEquivalentTo` drop 2 expectedEvents
 
   where
     -- Boilerplate avoidance
@@ -133,7 +132,7 @@ mkEventStreamSpec testKitSettings = do
     runScope = mkRunScope testKitSettings $ \a -> do
       -- Repository setup
       clock <- autoIncrementingClock 1000 1
-      (archiveStore, eventStore) <- (tksMakeContext testKitSettings) a
+      (archiveStore, eventStore) <- tksMakeContext testKitSettings a
       -- Build the ambient state.
       return $ Scope archiveStore eventStore clock
 
@@ -146,7 +145,7 @@ publishEvents aggregateId pes = do
     chunks <- doChunk pes  -- Chunk list of events into randomly sized chunks.
     forM_ chunks $ \chunk -> do
       chunks' <- doChunk chunk    -- Re-chunk each chunk into (possibly) multiple command invokations.
-      forM_ chunks' $ \chunk' -> do
+      forM_ chunks' $ \chunk' ->
         storeEvents' eventStore aggregateId chunk'
   where
     doChunk xs = do

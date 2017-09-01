@@ -16,7 +16,7 @@ module Data.CQRS.Command
     ) where
 
 import           Control.DeepSeq (NFData)
-import           Control.Monad (join, liftM, void)
+import           Control.Monad (join, void)
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad.Trans.Class (MonadTrans(..), lift)
 import           Control.Monad.Trans.State.Strict (StateT, runStateT, get, modify')
@@ -48,9 +48,7 @@ instance MonadIO m => MonadIO (CommandT i a e m) where
 -- | Command monad. This is just a reader to provide ambient access to the Repository.
 type CommandM i a e = ReaderT (Command i a e)
 
-data Command i a e =
-    Command { commandRepository :: Repository i a e
-            }
+newtype Command i a e = Command { commandRepository :: Repository i a e }
 
 -- | Unit of work monad transformer.
 newtype UnitOfWorkT a e m b = UnitOfWorkT { unUnitOfWorkT :: UnitOfWorkM a e m b }
@@ -81,7 +79,7 @@ execCommandT repository = void . runCommandT repository
 -- Write out all the changes for a given aggregate.
 writeChanges :: (MonadIO m) => i -> Aggregate a e -> CommandT i a e m ()
 writeChanges aggregateId aggregate = CommandT $ do
-  repository <- liftM commandRepository ask
+  repository <- fmap commandRepository ask
   let snapshotStore = repositorySnapshotStore repository
   let eventStore = repositoryEventStore repository
   let publishEvents = repositoryPublishEvents repository
@@ -90,30 +88,30 @@ writeChanges aggregateId aggregate = CommandT $ do
   -- We only care if new events were generated
   forM_ maybeChunk $ \chunk -> do
     -- Commit events to event store.
-    liftIO $ (esStoreEvents eventStore) chunk
+    liftIO $ esStoreEvents eventStore chunk
     -- Publish events written so far.
     liftIO $ publishEvents chunk
     -- Write out the snapshot (if applicable).
-    forM_ (settingsSnapshotFrequency $ repositorySettings repository) $ \snapshotFrequency -> do
-      forM_ (snapshotForAggregate $ fromIntegral snapshotFrequency) $ \snapshot -> do
+    forM_ (settingsSnapshotFrequency $ repositorySettings repository) $ \snapshotFrequency ->
+      forM_ (snapshotForAggregate $ fromIntegral snapshotFrequency) $ \snapshot ->
         liftIO $ ssWriteSnapshot snapshotStore aggregateId snapshot
   where
-    snapshotForAggregate maxDelta = join $ (flip fmap) (A.aggregateSnapshot aggregate) $ \(v, a) ->
+    snapshotForAggregate maxDelta = join $ flip fmap (A.aggregateSnapshot aggregate) $ \(v, a) ->
       -- If we've advanced N events past the last snapshot, we create a
       -- new snapshot.
       let sv = A.aggregateSnapshotVersion aggregate in
-        if (v - sv > maxDelta) then
+        if v - sv > maxDelta then
           Just $ Snapshot v a
         else
           Nothing
 
 -- Get the aggregateAction from the repository.
 getAggregateAction :: (Monad m) => CommandT i a e m (AggregateAction a e)
-getAggregateAction = CommandT $ liftM (repositoryAggregateAction . commandRepository) ask
+getAggregateAction = CommandT $ fmap (repositoryAggregateAction . commandRepository) ask
 
 -- Get the system clock from the repository.
 getClock :: (Monad m) => CommandT i a e m Clock
-getClock = CommandT $ liftM (settingsClock . repositorySettings .commandRepository) ask
+getClock = CommandT $ fmap (settingsClock . repositorySettings .commandRepository) ask
 
 -- | Create a new aggregate using the supplied unit of work. Throws a
 -- 'Data.CQRS.Types.VersionConflict' exception if there is already an
@@ -139,7 +137,7 @@ createAggregate aggregateId unitOfWork = do
   CommandT $ return r
   where
     run = do
-      let getter = liftM (A.aggregateValue . uowAggregate) get
+      let getter = fmap (A.aggregateValue . uowAggregate) get
       unUnitOfWorkT $ unitOfWork $ UnitOfWorkT getter
 
 -- | Update aggregate with the supplied unit of work. The unit of work
@@ -156,8 +154,8 @@ updateAggregate aggregateId unitOfWork = do
   clock <- getClock
   CommandT $ do
     aggregate <- getByIdFromEventStore aggregateId
-    unCommandT $ case A.aggregateValue $ aggregate of
-      Nothing -> do
+    unCommandT $ case A.aggregateValue aggregate of
+      Nothing ->
         return Nothing
       Just _ -> do
         (r, s) <- runStateT run $ UnitOfWork aggregate clock
@@ -165,28 +163,24 @@ updateAggregate aggregateId unitOfWork = do
         return $ Just r
   where
     run = do
-      let getter = liftM (fromJust . A.aggregateValue . uowAggregate) get
+      let getter = fmap (fromJust . A.aggregateValue . uowAggregate) get
       unUnitOfWorkT $ unitOfWork $ UnitOfWorkT getter
 
 -- | Read value of an aggregate if it exists. If any update needs to
 -- be performed on the aggregate, 'createAggregate' and 'updateAggregate'
 -- should be used.
 readAggregate :: (MonadIO m) => i -> CommandT i a e m (Maybe a)
-readAggregate = CommandT . liftM A.aggregateValue . getByIdFromEventStore
+readAggregate = CommandT . fmap A.aggregateValue . getByIdFromEventStore
 
 -- Retrieve aggregate from event store.
 getByIdFromEventStore :: (MonadIO m) => i -> CommandM i a e m (Aggregate a e)
 getByIdFromEventStore aggregateId = do
-  r <- liftM commandRepository ask
+  r <- fmap commandRepository ask
   let es = repositoryEventStore r
   let ss = repositorySnapshotStore r
   let aa = repositoryAggregateAction r
-  -- Start from a snapshot (if any).
-  a' <- liftM (A.applySnapshot $ A.emptyAggregate aa) $ liftIO $ ssReadSnapshot ss $ aggregateId
-  -- Apply any subsequent events.
-  a'' <- liftIO $ esRetrieveEvents es aggregateId (A.aggregateVersion0 a') (SC.fold A.applyEvent a')
-  -- Return the aggregate ref.
-  return a''
+  a' <- fmap (A.applySnapshot $ A.emptyAggregate aa) $ liftIO $ ssReadSnapshot ss aggregateId
+  liftIO $ esRetrieveEvents es aggregateId (A.aggregateVersion0 a') (SC.fold A.applyEvent a')
 
 -- | Publish event for the current aggregate.
 publishEvent :: (MonadIO m, NFData a, NFData e) => e -> UnitOfWorkT a e (CommandT i a e m) ()

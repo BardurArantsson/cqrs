@@ -5,8 +5,7 @@ module Data.CQRS.PostgreSQL.Internal.MigrationSpec
     ) where
 
 import           Control.Exception (bracket)
-import           Control.Monad (forM_)
-import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad (forM_, void)
 import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Internal.Migration
 import           Data.CQRS.PostgreSQL.Metadata
@@ -17,7 +16,7 @@ import           Test.Hspec
 
 -- Tests for Data.CQRS.PostgreSQL.Internal.Migration
 mkApplyMigrationsSpec :: IO (Pool Connection) -> Spec
-mkApplyMigrationsSpec mkConnectionPool = do
+mkApplyMigrationsSpec mkConnectionPool =
   forM_ [DefaultSchema, NamedSchema "foobar"] $ \schema -> do
     -- Show which case we're in
     let extra = case schema of
@@ -74,13 +73,12 @@ mkApplyMigrationsSpec mkConnectionPool = do
         assertValidQuery connectionPool joinXY
 
   where
-    withConnectionPool spec =
-      bracket mkConnectionPool destroyAllResources spec
+    withConnectionPool =
+      bracket mkConnectionPool destroyAllResources
 
-    assertValidQuery connectionPool sql = do
-      runTransactionP connectionPool $ do
-        rows <- queryAll sql []
-        liftIO $ rows `shouldSatisfy` (\rs -> length rs >= 0) -- Don't care about size of result, just that query succeeded
+    assertValidQuery connectionPool sql =
+      runTransactionP connectionPool $
+        void $ queryAll sql []
 
     createXSql = "CREATE TABLE X (A INT)"
     createYSql = "CREATE TABLE Y (B INT)"
@@ -93,6 +91,6 @@ mkApplyMigrationsSpec mkConnectionPool = do
     cid1 = "00c6159c-c7f6-4cec-b63f-f70c1c4c7bb1"
 
 applyMigrations' :: Schema -> Pool Connection -> [(Text, Text)] -> IO ()
-applyMigrations' schema connectionPool migrations = do
+applyMigrations' schema connectionPool migrations =
   withResource connectionPool $ \connection ->
       applyMigrations connection schema migrations

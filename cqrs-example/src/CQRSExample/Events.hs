@@ -11,8 +11,8 @@ import qualified Data.Text as T
 import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
 
-data Event = TaskEvent TaskEvent
-           deriving (Typeable, Show, Generic)
+newtype Event = TaskEvent TaskEvent
+                  deriving (Typeable, Show, Generic)
 
 data TaskEvent = TaskAdded Text
                | TaskCompleted
@@ -33,11 +33,11 @@ instance Serialize TaskEvent where
     put (TaskAdded t) = do
       putWord8 1
       put $ T.unpack t
-    put TaskCompleted = do
+    put TaskCompleted =
       putWord8 2
-    put TaskReopened = do
+    put TaskReopened =
       putWord8 3
-    put TaskArchived = do
+    put TaskArchived =
       putWord8 4
     get = do
       i <- getWord8
@@ -51,7 +51,7 @@ instance Serialize TaskEvent where
 instance Serialize Event where
     put (TaskEvent taskEvent) = do
       putWord8 1 -- Marker for future expansion
-      put $ taskEvent
+      put taskEvent
     get = do
       i <- getWord8
       case i of

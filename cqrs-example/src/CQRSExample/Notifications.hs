@@ -36,12 +36,12 @@ instance ToJSON Notification where
 
 -- Notifications that have been gathered up. Forms a monoid whose
 -- operator corresponds to the aggregation of notifications.
-data Notifications = Notifications (Seq Notification)
+newtype Notifications = Notifications (Seq Notification)
   deriving (Eq, Show)
 
 instance ToJSON Notifications where
     toJSON (Notifications ns) =
-        object [ "notifications" .= (toJSON $ F.toList ns) ]
+        object [ "notifications" .= toJSON (F.toList ns) ]
 
 instance Monoid Notifications where
     mempty = Notifications mempty

@@ -6,6 +6,7 @@ module Data.CQRS.Test.Internal.Scope
     ) where
 
 import Control.Exception (bracket)
+import Control.Monad ((>=>))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
 import Data.CQRS.Test.Internal.TestKitSettings
@@ -23,7 +24,7 @@ verify = liftIO
 -- settings. Each scope will be automatically bracketed by the "setUp"
 -- and "tearDown" functions of of the test settings.
 mkRunScope :: TestKitSettings a ctx -> (a -> IO s) -> (ScopeM s r -> IO r)
-mkRunScope testKitSettings mkScope  = \action -> do
+mkRunScope testKitSettings mkScope action =
   bracket (tksSetUp testKitSettings)
-          (tksTearDown testKitSettings) $ \a -> do
-    mkScope a >>= runReaderT action
+          (tksTearDown testKitSettings) $
+             mkScope >=> runReaderT action

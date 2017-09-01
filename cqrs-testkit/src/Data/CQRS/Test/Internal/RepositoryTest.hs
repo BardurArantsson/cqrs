@@ -4,8 +4,9 @@ module Data.CQRS.Test.Internal.RepositoryTest
     ( mkRepositorySpec
     ) where
 
+import           Control.Applicative ((<$>))
 import           Control.DeepSeq (NFData)
-import           Control.Monad (forM_, liftM)
+import           Control.Monad (forM_, void)
 import           Control.Monad.Trans.Reader (ask)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
@@ -39,7 +40,7 @@ data Scope i a e = Scope { scopeRepository :: Repository i a e
 -- Assert that the given list of events was published.
 assertDidPublish :: (Show e, Eq e, Show i, Eq i) => [(i, e, Int32, Int64)] -> ScopeM (Scope i a e) ()
 assertDidPublish expectedEvents = do
-  publishedEventsRef <- fmap scopePublishedEvents $ ask
+  publishedEventsRef <- scopePublishedEvents <$> ask
   verify $ do
     publishedEvents <- readIORef publishedEventsRef
     length publishedEvents `shouldBe` length expectedEvents
@@ -66,11 +67,10 @@ mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a 
           where (i, events') = Chunk.toList chunk
   -- Repository setup
   clock <- autoIncrementingClock 100 3
-  (eventStore, snapshotStore) <- (tksMakeContext testKitSettings) a
+  (eventStore, snapshotStore) <- tksMakeContext testKitSettings a
   let settings =
         setSnapshotFrequency snapshotFrequency $
-        setClock clock $
-          defaultSettings
+        setClock clock defaultSettings
   let repository = newRepository settings byteStringAggregateAction eventStore snapshotStore publish
   -- Build the ambient state.
   return $ Scope repository publishedEventsRef
@@ -78,7 +78,7 @@ mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a 
 -- Given test kit settings, create the full spec for testing the
 -- repository implementation against those settings.
 mkRepositorySpec :: TestKitSettings a (EventStore ByteString ByteString, SnapshotStore ByteString ByteString) -> Spec
-mkRepositorySpec testKitSettings = do
+mkRepositorySpec testKitSettings =
   -- We do each set of tests both *with* and *without* a snapshot
   -- store and with varying snapshot frequency. This should hopefully
   -- give us enough coverage against the handling of snapshots in the
@@ -87,7 +87,7 @@ mkRepositorySpec testKitSettings = do
     let fs = "frequency " ++ show f
     let s1 = "(snapshots; " ++ fs ++ ")"
     let s2 = "(null snapshots; " ++ fs ++ ")"
-    mkSpec s1 (mkRunScope' f $ testKitSettings)
+    mkSpec s1 (mkRunScope' f testKitSettings)
     mkSpec s2 (mkRunScope' f $ disableSnapshots testKitSettings)
   where
     disableSnapshots settings =
@@ -97,7 +97,7 @@ mkRepositorySpec testKitSettings = do
                  }
 
 mkSpec :: String -> (ScopeM (Scope ByteString ByteString ByteString) () -> IO ()) -> Spec
-mkSpec suffix runScope = do
+mkSpec suffix runScope =
 
   describe "Repository" $ do
 
@@ -133,9 +133,9 @@ mkSpec suffix runScope = do
       -- Exercise: 1st transaction
       (aggregateId, _) <- newAggregate ["9"]
       -- Exercise: 2nd transaction
-      _ <- runCommandT $ do
-        C.updateAggregate aggregateId $ \_ -> do
-          C.publishEvent $ "7"
+      void $ runCommandT $
+        C.updateAggregate aggregateId $ \_ ->
+          C.publishEvent "7"
       -- Should have an updated aggregate value.
       a <- loadAggregate aggregateId
       verify $ a `shouldBe` "97"
@@ -146,7 +146,7 @@ mkSpec suffix runScope = do
 
     it "should support publishing a large number of events to an aggregate" $ do
       -- Setup
-      let events = map B8.pack $ map show ([1.. 100] :: [Int])
+      let events = map (B8.pack . show) ([1.. 100] :: [Int])
       -- Exercise
       (aggregateId, _) <- newAggregate events
       -- Verify
@@ -173,12 +173,12 @@ mkSpec suffix runScope = do
       aggregateId0 <- randomId
       aggregateId1 <- randomId
       -- Exercise
-      _ <- runCommandT $ do
-        C.createAggregate aggregateId0 $ \_ -> do
+      void $ runCommandT $ do
+        C.createAggregate aggregateId0 $ \_ ->
           C.publishEvent "34"
-        C.createAggregate aggregateId1 $ \_ -> do
+        C.createAggregate aggregateId1 $ \_ ->
           C.publishEvent "1"
-        C.updateAggregate aggregateId0 $ \_ -> do
+        C.updateAggregate aggregateId0 $ \_ ->
           C.publishEvent "5"
       -- Should have updated values for both aggregates
       a0 <- loadAggregate aggregateId0
@@ -195,7 +195,7 @@ mkSpec suffix runScope = do
       -- Setup
       (aggregateId, _) <- newAggregate ["x"]
       -- Exercise:
-      Just (a, a') <- runCommandT $ do -- We'll assume pattern match will work, otherwise test fails
+      Just (a, a') <- runCommandT $ -- We'll assume pattern match will work, otherwise test fails
         C.updateAggregate aggregateId $ \get -> do
           a <- get
           C.publishEvent "y"
@@ -214,7 +214,7 @@ mkSpec suffix runScope = do
       -- Setup
       aggregateId <- randomId
       -- Exercise
-      (a, a') <- runCommandT $ do
+      (a, a') <- runCommandT $
         C.createAggregate aggregateId $ \get -> do
           a <- get  -- Should return Nothing
           C.publishEvent "x"
@@ -223,7 +223,7 @@ mkSpec suffix runScope = do
       -- Should have received Nothing in a' since aggregate didn't actually exist
       verify $ a `shouldBe` Nothing
       -- Should have received (Just "x") in a'' since we'd just published an "x" event
-      verify $ a' `shouldBe` (Just "x")
+      verify $ a' `shouldBe` Just "x"
       -- Should have published event
       assertDidPublish [ (aggregateId, "x", 0, 100) ]
 
@@ -238,18 +238,18 @@ newAggregate es = do
   -- Create new aggregate ID.
   aggregateId <- randomId
   -- Sanity check
-  liftIO $ assertBool "List of initial events must be non-emtpy" (length es > 0)
+  liftIO $ assertBool "List of initial events must be non-emtpy" (not $ null es)
   -- Create the aggregate with its initial list of events
   runCommandT $ do
     a <- C.createAggregate aggregateId $ \getAggregate -> do
-      forM_ es $ C.publishEvent
-      liftM fromJust $ getAggregate
+      forM_ es C.publishEvent
+      fmap fromJust getAggregate
     return (aggregateId, a)
 
 -- Load an aggregate value.
 loadAggregate :: i -> ScopeM (Scope i a e) a
 loadAggregate aggregateId = findAggregate aggregateId >>= \case
-  Nothing  -> error $ "loadAggregate: Missing expected aggregate"
+  Nothing  -> error "loadAggregate: Missing expected aggregate"
   (Just a) -> return a
 
 -- Get aggregate's value, if the aggregate exists

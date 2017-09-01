@@ -53,7 +53,7 @@ data Repository i a e = Repository
 
 -- | Create a repository.
 newRepository :: Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> (Chunk i e -> IO r) -> Repository i a e
-newRepository settings aggregateAction eventStore snapshotStore publishEvents = do
+newRepository settings aggregateAction eventStore snapshotStore publishEvents =
   Repository aggregateAction eventStore snapshotStore publishEvents' settings
   where
     publishEvents' inputStream = void $ publishEvents inputStream

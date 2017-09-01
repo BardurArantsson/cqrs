@@ -15,6 +15,7 @@ import qualified Data.CQRS.Types.Chunk as Chunk
 import           Data.CQRS.Types.EventStream (EventStream(..))
 import           Data.CQRS.Types.StreamPosition (StreamPosition, infimum)
 import qualified Data.List.NonEmpty as NEL
+import           Data.Maybe (fromMaybe)
 import           Network.Wai.EventSource (ServerEvent(..))
 import qualified System.IO.Streams as Streams
 import           System.IO.Streams (InputStream)
@@ -40,7 +41,7 @@ drain inputStream f = go Nothing
 
 -- Source of refresh events to the browser. Never returns.
 eventSourcingThread :: TVar QueryState -> EventStream TaskId Event -> TChan ServerEvent -> TChan (Chunk TaskId Event) -> IO ()
-eventSourcingThread qs eventStream serverEvents publishedEvents = do
+eventSourcingThread qs eventStream serverEvents publishedEvents =
   -- Start two threads. One thread just periodically polls the event
   -- stream -- starting at the last position that was successfully
   -- applied to the Query sate. The other thread just processes events
@@ -52,18 +53,18 @@ eventSourcingThread qs eventStream serverEvents publishedEvents = do
     pollEventStream p0 = do
       putStrLn "Polling event stream..."
       -- Process all the events.
-      p1 <- (esReadEventStream eventStream) p0 $ \inputStream -> do
+      p1 <- esReadEventStream eventStream p0 $ \inputStream ->
         drain inputStream $ \(p, event) -> do
-          forM_ (Chunk.fromList (pepAggregateId event) [shrink event]) $ processEvents
+          forM_ (Chunk.fromList (pepAggregateId event) [shrink event]) processEvents
           return p
       -- Next starting position?
-      let pn = maybe p0 id p1
+      let pn = fromMaybe p0 p1
       -- Go again after a while.
       threadDelay 30000000
       pollEventStream pn
 
     processPublishedEvents :: IO ()
-    processPublishedEvents = do
+    processPublishedEvents =
       -- Main event-sourcing loop; never terminates
       forever $ do
         -- Wait for events to be published.
@@ -72,8 +73,8 @@ eventSourcingThread qs eventStream serverEvents publishedEvents = do
         -- Send out notifications to client
         let (aggregateId, evs) = Chunk.toList chunk
         let notifications = updateNotifications (aggregateId, NEL.toList evs) mempty
-        when (notifications /= mempty) $ do
-          atomically $ C.writeTChan serverEvents $! toServerEvent $ notifications
+        when (notifications /= mempty) $
+          atomically $ C.writeTChan serverEvents $! toServerEvent notifications
 
     processEvents :: Chunk TaskId Event -> IO ()
     processEvents chunk = do
@@ -87,10 +88,10 @@ startServing = do
   qState <- newTVarIO newQueryState
 
   -- Queue of json events to send to browser.
-  serverEvents <- atomically $ C.newBroadcastTChan
+  serverEvents <- atomically C.newBroadcastTChan
 
   -- Events published by query module.
-  publishedEvents <- atomically $ C.newTChan
+  publishedEvents <- atomically C.newTChan
 
   -- Publish events
   let publishEvents = atomically . C.writeTChan publishedEvents
@@ -101,15 +102,15 @@ startServing = do
   eventStream <- newEventStream storage
 
   -- Create the resository
-  let repositorySettings = R.setSnapshotFrequency 10 $ R.defaultSettings
+  let repositorySettings = R.setSnapshotFrequency 10 R.defaultSettings
   let repository = R.newRepository repositorySettings aggregateAction eventStore nullSnapshotStore publishEvents
 
   -- Start sourcing events.
-  void $ forkIO $ do
+  void $ forkIO $
     eventSourcingThread qState eventStream serverEvents publishedEvents
 
   -- Web serving thread.
-  void $ forkIO $ do
+  void $ forkIO $
     scotty 8000 $ routes qState repository serverEvents
 
 

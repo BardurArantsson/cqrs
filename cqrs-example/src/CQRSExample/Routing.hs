@@ -37,11 +37,11 @@ routes qs repository serverEvents = do
   middleware $ staticPolicy (addBase "static")
 
   -- Redirect to index
-  get "/" $ do
+  get "/" $
     redirect "/index.html"
 
   -- Actions
-  post "/tasks/archive-completed" $ do
+  post "/tasks/archive-completed" $
     run $ C.archiveCompletedTasks qs
 
   post "/tasks/complete" $ do
@@ -74,9 +74,9 @@ routes qs repository serverEvents = do
         Nothing -> return () -- Done
         Just builder -> do
             void $ sendChunk builder
-            void $ flush
+            void flush
             loop sendChunk flush chan
 
     run command = do
-      void $ liftIO $ runCommandT repository $ command
+      void $ liftIO $ runCommandT repository command
       json Null

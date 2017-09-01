@@ -32,7 +32,7 @@ completeTask :: TaskId -> TaskCommandT IO (Maybe ())
 completeTask taskId = updateAggregate taskId $ \get -> do
   task <- get
   case taskStatus task of
-    TaskStatusOpen     -> publishEvent $ TaskEvent $ TaskCompleted
+    TaskStatusOpen     -> publishEvent $ TaskEvent TaskCompleted
     TaskStatusComplete -> return ()
     TaskStatusArchived -> return ()
 
@@ -42,7 +42,7 @@ reopenTask taskId = updateAggregate taskId $ \get -> do
   task <- get
   case taskStatus task of
     TaskStatusOpen     -> return ()
-    TaskStatusComplete -> publishEvent $ TaskEvent $ TaskReopened
+    TaskStatusComplete -> publishEvent $ TaskEvent TaskReopened
     TaskStatusArchived -> return ()
 
 -- Archive all completed tasks.
@@ -51,10 +51,10 @@ archiveCompletedTasks qs = do
   -- Get a list of all the completed tasks
   taskIds <- lift $ runQuery qs qCompletedTaskIdList
   -- Go through and archive each of the tasks
-  forM_ taskIds $ \taskId -> do
+  forM_ taskIds $ \taskId ->
     updateAggregate taskId $ \get -> do
       task <- get
       case taskStatus task of
         TaskStatusOpen     -> return ()
-        TaskStatusComplete -> publishEvent $ TaskEvent $ TaskArchived
+        TaskStatusComplete -> publishEvent $ TaskEvent TaskArchived
         TaskStatusArchived -> return ()

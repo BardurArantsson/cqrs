@@ -1,21 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Data.CQRS.PostgreSQL.Internal.UtilsSpec
-    ( mkUtilsSpec
+module Data.CQRS.PostgreSQL.Internal.QuerySpec
+    ( mkQuerySpec
     ) where
 
 import           Control.Exception (bracket)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (isInfixOf)
-import           Data.CQRS.PostgreSQL.Internal.Utils (queryAll, runTransactionP, query1)
-import           Data.CQRS.PostgreSQL.Internal.SqlValue
+import           Data.CQRS.PostgreSQL.Internal.Query
+import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Data.CQRS.PostgreSQL.Internal.QueryError
 import           Data.Pool (Pool, destroyAllResources)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           Test.Hspec
 
 -- Tests for Data.CQRS.PostgreSQL.Internal.Utils
-mkUtilsSpec :: IO (Pool Connection) -> Spec
-mkUtilsSpec mkConnectionPool = do
+mkQuerySpec :: IO (Pool Connection) -> Spec
+mkQuerySpec mkConnectionPool = do
   describe "single-result query" $ do
     it "produces a result (non-parametric)" $ withConnectionPool $ do
       x <- queryAll "SELECT TRUE" []

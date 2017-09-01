@@ -9,8 +9,9 @@ import           Data.Pool (Pool)
 import           Data.CQRS.Internal.StreamPosition
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.EventStream
-import           Data.CQRS.PostgreSQL.Internal.Utils
+import           Data.CQRS.PostgreSQL.Internal.Query
 import           Data.CQRS.PostgreSQL.Internal.Tables
+import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Data.CQRS.PostgreSQL.Metadata
 import           Database.PostgreSQL.LibPQ (Connection)
 import           NeatInterpolation (text)

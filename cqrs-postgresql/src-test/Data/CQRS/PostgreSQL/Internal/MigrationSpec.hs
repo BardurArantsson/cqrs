@@ -6,8 +6,9 @@ module Data.CQRS.PostgreSQL.Internal.MigrationSpec
 
 import           Control.Exception (bracket)
 import           Control.Monad (forM_, void)
-import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Internal.Migration
+import           Data.CQRS.PostgreSQL.Internal.Query
+import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Pool (Pool, withResource, destroyAllResources)
 import           Data.Text (Text)

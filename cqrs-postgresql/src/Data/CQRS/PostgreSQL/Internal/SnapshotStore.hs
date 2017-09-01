@@ -7,7 +7,8 @@ import           Control.Applicative ((<$>))
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.SnapshotStore (SnapshotStore(..))
-import           Data.CQRS.PostgreSQL.Internal.Utils
+import           Data.CQRS.PostgreSQL.Internal.Query
+import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Data.CQRS.PostgreSQL.Internal.Tables
 import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Int (Int32)
@@ -21,7 +22,7 @@ writeSnapshot connectionPool tables aggregateId (Snapshot v d) =
   -- update the same snapshot since snapshots aren't important enough
   -- to merit the extra complexity.
   runTransactionP connectionPool $
-    execSql upsertSnapshotSql
+    execute upsertSnapshotSql
       [ SqlByteArray $ Just aggregateId
       , SqlByteArray $ Just d
       , SqlInt32 $ Just v

@@ -10,8 +10,8 @@ import           Data.CQRS.PostgreSQL ( newEventStore
                                       )
 import           Data.CQRS.PostgreSQL.Migrations
 import           Data.CQRS.PostgreSQL.Metadata
-import           Data.CQRS.PostgreSQL.Internal.UtilsSpec ( mkUtilsSpec )
 import           Data.CQRS.PostgreSQL.Internal.MigrationSpec ( mkApplyMigrationsSpec )
+import           Data.CQRS.PostgreSQL.Internal.QuerySpec ( mkQuerySpec )
 import           Data.CQRS.Test.TestKit ( mkEventStoreSpec
                                         , mkEventStreamSpec
                                         , mkRepositorySpec
@@ -48,7 +48,7 @@ main = do
          }
     -- Run the tests
     hspec $ do
-       mkUtilsSpec mkConnectionPool
+       mkQuerySpec mkConnectionPool
        mkApplyMigrationsSpec mkConnectionPool
        mkSnapshotStoreSpec $ testKitSettings {
                                  tksMakeContext = (`newSnapshotStore` schema)

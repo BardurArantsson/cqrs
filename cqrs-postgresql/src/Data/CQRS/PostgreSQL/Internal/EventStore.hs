@@ -13,8 +13,9 @@ import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as C
 import           Data.CQRS.Types.EventStore (EventStore(..), StoreError(..))
 import           Data.CQRS.PostgreSQL.Internal.QueryError
+import           Data.CQRS.PostgreSQL.Internal.Query
 import           Data.CQRS.PostgreSQL.Internal.Tables
-import           Data.CQRS.PostgreSQL.Internal.Utils
+import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Int (Int32)
 import           Database.PostgreSQL.LibPQ (Connection)
@@ -46,7 +47,7 @@ storeEvents cp tables chunk =
         -- Insert. We ignore the aggregateID specified on the actual
         -- events because it must (by contract) be exactly the same as
         -- the 'aggregateId' parameter.
-        execSql sqlInsertEvent
+        execute sqlInsertEvent
           [ SqlByteArray $ Just aggregateId
           , SqlByteArray $ Just $ peEvent e
           , SqlInt32 $ Just $ peSequenceNumber e

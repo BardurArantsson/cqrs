@@ -1,12 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.PostgreSQL.Internal.Migration
     ( applyMigrations
     ) where
 
 import           Control.Applicative ((<$>))
 import           Control.Monad (forM_, when)
-import           Data.CQRS.PostgreSQL.Internal.Utils
+import           Data.CQRS.PostgreSQL.Internal.Query
+import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Text (Text)
 import           Data.Int (Int32)
@@ -29,8 +31,8 @@ applyMigrations c schema migrations = do
   -- schema) if necessary. Having just created this table without
   -- any rows represents "version 0" of the metadata data
   -- structures.
-  forM_ sqlCreateSchema $ \s -> runTransaction c $ execSql s [ ]
-  runTransaction c $ execSql sqlCreateMetaTbl [ ]
+  forM_ sqlCreateSchema $ \s -> runTransaction c $ execute s [ ]
+  runTransaction c $ execute sqlCreateMetaTbl [ ]
   -- Apply meta-migrations.
   withLock $
     -- Apply meta-migrations; these are hardcoded for obvious reasons.
@@ -53,8 +55,8 @@ applyMigrations c schema migrations = do
           -- Applied, but SQL doesn't match. That's a huge problem, so we'll error out.
           error $ "Migration error: Changeset SQL modified: " ++ show changeSetId
         Nothing -> do
-          execSql sqlInsertMigration [ changeSetIdSql, SqlText $ Just sql ]
-          execSql sql [ ]
+          execute sqlInsertMigration [ changeSetIdSql, SqlText $ Just sql ]
+          execute sql [ ]
 
   where
 
@@ -73,25 +75,25 @@ applyMigrations c schema migrations = do
 
     -- Apply meta-migrations for the given base version number. The migration
     -- is skipped if it has been performed before.
-    metaMigrate :: Int32 -> [Text] -> Transaction ()
+    metaMigrate :: Int32 -> [Text] -> QueryT IO ()
     metaMigrate metaVersion sqls = do
       -- Get the meta-version; defaults to 0 if we've only just
       -- created the metadata table.
       currentMetaVersion <- maybe 0 unpackMetaVersion <$> query1 sqlGetMetaVersion [ ]
       -- If the migration is applicable, then we apply it.
       when (currentMetaVersion + 1 == metaVersion) $ do
-        forM_ sqls $ \sql -> execSql sql []
-        rowCount <- fromMaybe 0 <$> execSql' sqlUpdateMetaVersion [ SqlInt32 $ Just metaVersion
+        forM_ sqls $ \sql -> execute sql []
+        rowCount <- fromMaybe 0 <$> execute' sqlUpdateMetaVersion [ SqlInt32 $ Just metaVersion
                                                                   , SqlInt32 $ Just currentMetaVersion
                                                                   ]
         when (rowCount /= 1) $ error $ "Unexpected row count " ++ show rowCount ++ " from update on \"migration_meta\" table!"
 
     -- Perform a transaction with the exclusive lock held. The lock is
     -- automatically released when the transaction ends.
-    withLock :: Transaction a -> IO a
+    withLock :: QueryT IO a -> IO a
     withLock txn =
       runTransaction c $ do
-        execSql sqlLockMetaTbl [ ]
+        execute sqlLockMetaTbl [ ]
         txn
 
     -- Migrations support SQL:

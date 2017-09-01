@@ -24,21 +24,21 @@ import qualified System.IO.Streams.Combinators as SC
 import           NeatInterpolation (text)
 
 -- Store events for a given aggregate. We do not have a separate table
--- storing aggregate (ID -> version) mappings, which would
--- ordinarily be required to avoid the potential for version "gaps"
--- caused by phantom reads (at any non-SERIALIZABLE isolation level).
--- The scenario would be this: Thread A loads an aggregate and
--- generates some events. Before A commits, but after it has inserted
--- the events into the "event" table, thread B comes along and loads
--- the same aggregate, sees A's events and begins to append events
--- (continuing from A's last sequence number).  When A comes to commit
--- it fails for some reason, but B's commit succeeds (since it is pure
--- inserts there's no data dependency on A to prevent it from
+-- storing aggregate (ID -> version) mappings, which would ordinarily
+-- be required to avoid the potential for version "gaps" caused by
+-- phantom reads (at any non-SERIALIZABLE isolation level).  The
+-- scenario would be this: Thread A loads an aggregate and generates
+-- some events. Before A commits, but after it has inserted the events
+-- into the "event" table, thread B comes along and loads the same
+-- aggregate, sees A's events and begins to append events (continuing
+-- from A's last sequence number).  When A comes to commit it fails
+-- for some reason, but B's commit succeeds (since it is pure inserts
+-- there's no data dependency on A to prevent it from
 -- committing). Thus we would end up with a gap in the version
 -- numbers, not to mention that B may have depended semantically on
 -- A's events.  However, in PostgreSQL the initial read that B
--- performs cannot see A's events because READ COMMITTED doesn't
--- permit it, even if the events were inserts.
+-- performs cannot see A's events because PostgreSQL's version of
+-- REPEATABLE READ prevents phantom reads.
 storeEvents :: Pool Connection -> Tables -> Chunk ByteString ByteString -> IO ()
 storeEvents cp tables chunk =
   translateExceptions aggregateId $

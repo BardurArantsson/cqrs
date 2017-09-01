@@ -39,7 +39,7 @@ runTransaction connection q = do
 
     tx sql = void $ unsafeExecute connection sql [ ]
 
-    begin = tx "START TRANSACTION;"
+    begin = tx "START TRANSACTION ISOLATION LEVEL REPEATABLE READ;"
     commit = tx "COMMIT TRANSACTION;"
     rollback = tx "ROLLBACK TRANSACTION;"
 

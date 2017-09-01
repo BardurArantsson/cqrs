@@ -12,8 +12,9 @@ import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as C
 import           Data.CQRS.Types.EventStore (EventStore(..), StoreError(..))
-import           Data.CQRS.PostgreSQL.Internal.Utils
+import           Data.CQRS.PostgreSQL.Internal.QueryError
 import           Data.CQRS.PostgreSQL.Internal.Tables
+import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Int (Int32)
 import           Database.PostgreSQL.LibPQ (Connection)

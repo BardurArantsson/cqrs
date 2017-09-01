@@ -37,7 +37,9 @@ Library
                       Data.CQRS.PostgreSQL.Internal.EventStore
                       Data.CQRS.PostgreSQL.Internal.EventStream
                       Data.CQRS.PostgreSQL.Internal.Migration
+                      Data.CQRS.PostgreSQL.Internal.QueryError
                       Data.CQRS.PostgreSQL.Internal.SnapshotStore
+                      Data.CQRS.PostgreSQL.Internal.SqlValue
                       Data.CQRS.PostgreSQL.Internal.Tables
                       Data.CQRS.PostgreSQL.Internal.Utils
 

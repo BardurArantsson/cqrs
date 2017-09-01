@@ -6,7 +6,9 @@ module Data.CQRS.PostgreSQL.Internal.UtilsSpec
 import           Control.Exception (bracket)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (isInfixOf)
-import           Data.CQRS.PostgreSQL.Internal.Utils (SqlValue(..), QueryError(..), queryAll, runTransactionP, query1)
+import           Data.CQRS.PostgreSQL.Internal.Utils (queryAll, runTransactionP, query1)
+import           Data.CQRS.PostgreSQL.Internal.SqlValue
+import           Data.CQRS.PostgreSQL.Internal.QueryError
 import           Data.Pool (Pool, destroyAllResources)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           Test.Hspec

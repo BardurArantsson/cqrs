@@ -14,7 +14,7 @@ import qualified Data.Sequence as S
 
 data Event i e =
     Event { eAggregateId :: i
-          , ePersistedEvent :: PersistedEvent i e
+          , ePersistedEvent :: PersistedEvent e
           , eTimestamp :: Int64
           }
     deriving (Show)

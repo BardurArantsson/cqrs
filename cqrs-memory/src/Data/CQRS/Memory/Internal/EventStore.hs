@@ -63,7 +63,7 @@ storeEvents (Storage store) chunk = atomically $ do
 
     (aggregateId, newEvents) = C.toList chunk
 
-retrieveEvents :: (Eq i) => Storage i e -> i -> Int32 -> (InputStream (PersistedEvent i e) -> IO a) -> IO a
+retrieveEvents :: (Eq i) => Storage i e -> i -> Int32 -> (InputStream (PersistedEvent e) -> IO a) -> IO a
 retrieveEvents (Storage store) aggregateId v0 f = do
   events <- fmap F.toList $ atomically $ eventsByAggregateId store aggregateId
   SL.fromList events >>= SC.filter (\e -> peSequenceNumber e > v0) >>= f
@@ -80,7 +80,7 @@ retrieveAllEvents (Storage store) f = do
     cf e = (eAggregateId e, peSequenceNumber $ ePersistedEvent e)
 
 
-eventsByAggregateId :: (Eq i) => TVar (Store i e) -> i -> STM (Seq (PersistedEvent i e))
+eventsByAggregateId :: (Eq i) => TVar (Store i e) -> i -> STM (Seq (PersistedEvent e))
 eventsByAggregateId store aggregateId = do
   events <- readTVar store
   return $ fmap ePersistedEvent $ S.filter (\e -> aggregateId == eAggregateId e) $ msEvents events

@@ -50,7 +50,7 @@ instance Monoid Notifications where
 -- Update a Notifications value to account for the given persisted events.
 -- Ideally, we'd coalesce multiple notifications of the same types, but for
 -- this example it's not really necessary so we'll just keep it simple.
-updateNotifications :: (TaskId, [PersistedEvent TaskId Event]) -> Notifications -> Notifications
+updateNotifications :: (TaskId, [PersistedEvent Event]) -> Notifications -> Notifications
 updateNotifications (_, publishedEvents) (Notifications notifications) =
   Notifications $ notifications <> F.foldMap (S.fromList . f . peEvent) publishedEvents
   where

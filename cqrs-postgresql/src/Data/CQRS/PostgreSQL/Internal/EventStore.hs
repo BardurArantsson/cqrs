@@ -72,7 +72,7 @@ storeEvents cp identifiers chunk =
       \            (\"aggregate_id\", \"event_data\", \"seq_no\", \"timestamp\") \
       \     VALUES (?, ?, ?, ?)"
 
-retrieveEvents :: Pool Connection -> Identifiers -> ByteString -> Int32 -> (InputStream (PersistedEvent ByteString ByteString) -> IO a) -> IO a
+retrieveEvents :: Pool Connection -> Identifiers -> ByteString -> Int32 -> (InputStream (PersistedEvent ByteString) -> IO a) -> IO a
 retrieveEvents cp identifiers aggregateId v0 f =
    runTransactionP cp $
      query sqlSelectEvent (eventTable, Binary aggregateId, v0) $ \is ->

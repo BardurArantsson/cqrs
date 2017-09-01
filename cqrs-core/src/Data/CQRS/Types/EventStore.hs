@@ -29,7 +29,7 @@ data EventStore i e = EventStore {
       -- Only events at or after the given version number are supplied
       -- by the input stream. The events are supplied in increasing
       -- order of version number.
-      esRetrieveEvents :: forall a . i -> Int32 -> (InputStream (PersistedEvent i e) -> IO a) -> IO a
+      esRetrieveEvents :: forall a . i -> Int32 -> (InputStream (PersistedEvent e) -> IO a) -> IO a
     ,
       -- | Read all events from the event store. Events will be
       -- returned in order of increasing version number, grouped by
@@ -49,14 +49,9 @@ transform (fi, gi) (fe, ge) (EventStore storeEvents retrieveEvents retrieveAllEv
     storeEvents' :: Chunk i' e' -> IO ()
     storeEvents' = storeEvents . bimap fi fe
 
-    retrieveEvents' :: forall a . i' -> Int32 -> (InputStream (PersistedEvent i' e') -> IO a) -> IO a
+    retrieveEvents' :: forall a . i' -> Int32 -> (InputStream (PersistedEvent e') -> IO a) -> IO a
     retrieveEvents' aggregateId' v0 p' =
-      -- To avoid redundant conversions, we 'map' the event aggregate
-      -- IDs by simply replacing them. This is valid since the
-      -- contract specifies that they must all equal the given
-      -- 'aggregateID' parameter. This is strictly a performance
-      -- optimization.
-      retrieveEvents (fi aggregateId') v0 $ SC.map (bimap (const aggregateId') ge) >=> p'
+      retrieveEvents (fi aggregateId') v0 $ SC.map (fmap ge) >=> p'
 
     retrieveAllEvents' :: forall a. (InputStream (PersistedEvent' i' e') -> IO a) -> IO a
     retrieveAllEvents' p' =

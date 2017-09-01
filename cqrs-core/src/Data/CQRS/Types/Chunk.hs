@@ -16,24 +16,24 @@ import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NEL
 
 -- A non-empty chunk of events for a single aggregate.
-data Chunk i e = Chunk !i !(NonEmpty (PersistedEvent i e))
+data Chunk i e = Chunk !i !(NonEmpty (PersistedEvent e))
   deriving (Show, Eq, Generic)
 
 -- Instances
 instance Bifunctor Chunk where
   bimap f g (Chunk aggregateId events) = Chunk aggregateId' events'
     where
-      events' = NEL.map (bimap f g) events
+      events' = NEL.map (fmap g) events
       aggregateId' = f aggregateId
 
 instance (NFData e, NFData i) => NFData (Chunk i e)
 
 -- | Create a chunk from an aggregate ID and a list of events.
-fromList :: i -> [PersistedEvent i e] -> Maybe (Chunk i e)
+fromList :: i -> [PersistedEvent e] -> Maybe (Chunk i e)
 fromList i es = fromNonEmpty i <$> NEL.nonEmpty es
 
 -- | Create a chunk from an aggregate ID and a non-empty list of events.
-fromNonEmpty :: i -> NonEmpty (PersistedEvent i e) -> Chunk i e
+fromNonEmpty :: i -> NonEmpty (PersistedEvent e) -> Chunk i e
 fromNonEmpty = Chunk
 
 -- | Group events into chunks based on aggregate ID.
@@ -47,5 +47,5 @@ chunks persistedEvents =
 
 -- | Convert a chunk into an identifier and a non-empty list of
 -- events.
-toList :: Chunk i e -> (i, NonEmpty (PersistedEvent i e))
+toList :: Chunk i e -> (i, NonEmpty (PersistedEvent e))
 toList (Chunk i es) = (i, es)

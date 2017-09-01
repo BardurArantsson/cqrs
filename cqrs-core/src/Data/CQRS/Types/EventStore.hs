@@ -34,7 +34,7 @@ data EventStore i e = EventStore {
       -- returned in order of increasing version number, grouped by
       -- aggregate ID. __This function should ONLY be used for
       -- debugging purposes.__
-      esRetrieveAllEvents :: forall a . (InputStream (PersistedEvent i e) -> IO a) -> IO a
+      esRetrieveAllEvents :: forall a . (InputStream (PersistedEvent' i e) -> IO a) -> IO a
     }
 
 -- | Transform an implementation of 'EventStore i a' to an
@@ -65,6 +65,6 @@ transform (fi, gi) (fe, ge) (EventStore storeEvents retrieveEvents retrieveAllEv
       -- optimization.
       retrieveEvents (fi aggregateId') v0 $ SC.map (bimap (const aggregateId') ge) >=> p'
 
-    retrieveAllEvents' :: forall a. (InputStream (PersistedEvent i' e') -> IO a) -> IO a
+    retrieveAllEvents' :: forall a. (InputStream (PersistedEvent' i' e') -> IO a) -> IO a
     retrieveAllEvents' p' =
       retrieveAllEvents $ SC.map (bimap gi ge) >=> p'

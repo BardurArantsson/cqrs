@@ -18,7 +18,7 @@ import           NeatInterpolation (text)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
-readEventStream :: Pool Connection -> Tables -> StreamPosition -> (InputStream (StreamPosition, PersistedEvent ByteString ByteString) -> IO a) -> IO a
+readEventStream :: Pool Connection -> Tables -> StreamPosition -> (InputStream (StreamPosition, PersistedEvent' ByteString ByteString) -> IO a) -> IO a
 readEventStream connectionPool tables sp@(StreamPosition sp0) f = do
   -- Run the query
   runTransactionP connectionPool $ do
@@ -30,7 +30,7 @@ readEventStream connectionPool tables sp@(StreamPosition sp0) f = do
            , SqlByteArray (Just aggregateId)
            , SqlByteArray (Just eventData)
            , SqlInt32 (Just sequenceNumber)
-           ] = (StreamPosition lTimestamp, PersistedEvent eventData sequenceNumber aggregateId)
+           ] = (StreamPosition lTimestamp, PersistedEvent' aggregateId (PersistedEvent eventData sequenceNumber))
     unpack columns = error $ badQueryResultMsg [show sp] columns
     -- SQL
     eventTable = tblEvent tables

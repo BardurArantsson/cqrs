@@ -29,6 +29,7 @@ Library
                        Data.CQRS.Repository
                        Data.CQRS.SnapshotStore
                        Data.CQRS.Internal.Aggregate
+                       Data.CQRS.Internal.PersistedEvent
                        Data.CQRS.Internal.Repository
                        Data.CQRS.Internal.StreamPosition
                        Data.CQRS.Types.AggregateAction

@@ -9,8 +9,8 @@ import           Control.Monad (forM_)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
 import           Data.Pool (Pool)
+import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Types.EventStore (EventStore(..), StoreError(..))
-import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Internal.Tables
 import           Data.CQRS.PostgreSQL.Metadata
@@ -78,7 +78,7 @@ retrieveEvents cp tables aggregateId v0 f =
   where
     unpack [ SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
-           ] = PersistedEvent eventData sequenceNumber aggregateId
+           ] = PersistedEvent eventData sequenceNumber
     unpack columns = error $ badQueryResultMsg [show aggregateId, show v0] columns
 
     eventTable = tblEvent tables
@@ -91,7 +91,7 @@ retrieveEvents cp tables aggregateId v0 f =
       ORDER BY "seq_no" ASC
     |]
 
-retrieveAllEvents :: Pool Connection -> Tables -> (InputStream (PersistedEvent ByteString ByteString) -> IO a) -> IO a
+retrieveAllEvents :: Pool Connection -> Tables -> (InputStream (PersistedEvent' ByteString ByteString) -> IO a) -> IO a
 retrieveAllEvents cp tables f =
   runTransactionP cp $ do
     query sqlSelectAllEvents [ ] $ \is ->
@@ -100,7 +100,7 @@ retrieveAllEvents cp tables f =
     unpack [ SqlByteArray (Just aggregateId)
            , SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
-           ] = PersistedEvent eventData sequenceNumber aggregateId
+           ] = grow aggregateId $ PersistedEvent eventData sequenceNumber
     unpack columns = error $ badQueryResultMsg [] columns
 
     eventTable = tblEvent tables

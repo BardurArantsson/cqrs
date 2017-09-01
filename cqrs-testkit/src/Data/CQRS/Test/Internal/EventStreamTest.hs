@@ -9,12 +9,12 @@ import           Control.Monad (forM_, replicateM)
 import           Control.Monad.Trans.Reader (ask)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
+import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
 import           Data.CQRS.Test.Internal.TestKitSettings
 import           Data.CQRS.Test.Internal.Utils (randomId, randomByteString, chunkRandomly)
 import           Data.CQRS.Types.EventStore
 import           Data.CQRS.Types.EventStream
-import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StreamPosition
 import           Data.Function (on)
 import           Data.Int (Int32)
@@ -52,7 +52,7 @@ storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ (esStoreEvents eventStore) aggregateId events
 
-readEventStream' :: StreamPosition -> (InputStream (StreamPosition, PersistedEvent i e) -> IO a) -> ScopeM (Scope i e) a
+readEventStream' :: StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i e) -> IO a) -> ScopeM (Scope i e) a
 readEventStream' startPosition f = do
   eventStream <- fmap scopeEventStream ask
   liftIO $ (esReadEventStream eventStream) startPosition f
@@ -62,7 +62,7 @@ readEventStream startPosition = do
   eventStream <- fmap scopeEventStream ask
   liftIO $ (esReadEventStream eventStream) startPosition (SC.map dropStreamPosition) >>= SL.toList
   where
-    dropStreamPosition (_, e) = (peAggregateId e, e)
+    dropStreamPosition (_, e) = (pepAggregateId e, shrink e)
 
 -- Given test kit settings, create the full spec for testing the event
 -- stream implementation against those settings.
@@ -74,9 +74,9 @@ mkEventStreamSpec testKitSettings = do
     it "should support enumeration from the beginning" $ do
       -- Setup
       aggregateId <- randomId
-      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0 aggregateId)
-                           , (aggregateId, PersistedEvent "6" 1 aggregateId)
-                           , (aggregateId, PersistedEvent "9" 2 aggregateId)
+      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0)
+                           , (aggregateId, PersistedEvent "6" 1)
+                           , (aggregateId, PersistedEvent "9" 2)
                            ]
       let expectedEvents' = map snd expectedEvents
       storeEvents aggregateId expectedEvents'
@@ -105,11 +105,11 @@ mkEventStreamSpec testKitSettings = do
     it "should support resumption from a previously reached position" $ do
       -- Setup: Create a few events
       aggregateId <- randomId
-      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0 aggregateId)
-                           , (aggregateId, PersistedEvent "6" 1 aggregateId)
-                           , (aggregateId, PersistedEvent "9" 2 aggregateId)
-                           , (aggregateId, PersistedEvent "12" 3 aggregateId)
-                           , (aggregateId, PersistedEvent "15" 4 aggregateId)
+      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0)
+                           , (aggregateId, PersistedEvent "6" 1)
+                           , (aggregateId, PersistedEvent "9" 2)
+                           , (aggregateId, PersistedEvent "12" 3)
+                           , (aggregateId, PersistedEvent "15" 4)
                            ]
       storeEvents aggregateId $ map snd expectedEvents
       -- Setup: Read until we've seen two events
@@ -156,4 +156,4 @@ genEvents aggregateId n i0 = do
     genEvents' :: IO [PersistedEvent i ByteString]
     genEvents' = do
       es <- replicateM (fromIntegral n) $ randomByteString 8
-      return $ map (\(i, e) -> PersistedEvent e (i0 + i) aggregateId) (zip [0..] es)
+      return $ map (\(i, e) -> PersistedEvent e (i0 + i)) (zip [0..] es)

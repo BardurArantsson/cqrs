@@ -6,8 +6,8 @@ import           Control.Concurrent.STM (STM, atomically)
 import           Control.Concurrent.STM.TVar (TVar, readTVar, modifyTVar')
 import           Control.Monad (when, forM_)
 import           Control.Monad.STM (throwSTM)
+import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Types.EventStore (EventStore(..))
-import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.CQRS.Types.StoreError (StoreError(..))
 import           Data.CQRS.Memory.Internal.Storage
 import qualified Data.Foldable as F
@@ -31,7 +31,7 @@ storeEvents (Storage store) aggregateId newEvents = atomically $ do
         -- Base timestamp
         let baseTimestamp = msCurrentTimestamp ms in
         -- Tag all the events with our wrapper
-        let newTaggedEvents = map (uncurry Event) (zip newEvents [baseTimestamp..]) in
+        let newTaggedEvents = map (\(e,ts) -> Event aggregateId e ts) (zip newEvents [baseTimestamp..]) in
         -- Update the storage
         ms { msEvents = (msEvents ms) >< (S.fromList newTaggedEvents)
            , msCurrentTimestamp = baseTimestamp + (fromIntegral $ length newTaggedEvents)
@@ -64,14 +64,14 @@ retrieveEvents (Storage store) aggregateId v0 f = do
   events <- fmap F.toList $ atomically $ eventsByAggregateId store aggregateId
   SL.fromList events >>= SC.filter (\e -> peSequenceNumber e > v0) >>= f
 
-retrieveAllEvents :: (Ord i) => Storage i e -> (InputStream (PersistedEvent i e) -> IO a) -> IO a
+retrieveAllEvents :: (Ord i) => Storage i e -> (InputStream (PersistedEvent' i e) -> IO a) -> IO a
 retrieveAllEvents (Storage store) f = do
   -- We won't bother with efficiency since this is only
   -- really used for debugging/tests.
   events <- fmap msEvents $ atomically $ readTVar store
   let eventList = F.toList events
   inputStream <- SL.fromList $ sortBy (comparing cf) eventList
-  SC.map (\(Event event _) -> event) inputStream >>= f
+  SC.map (\(Event i event _) -> grow i event) inputStream >>= f
   where
     cf e = (eAggregateId e, peSequenceNumber $ ePersistedEvent e)
 

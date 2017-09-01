@@ -6,11 +6,11 @@ import           Control.Concurrent.STM (atomically, TChan)
 import qualified Control.Concurrent.STM.TChan as C
 import           Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import           Control.Monad (void, forever, when)
+import           Data.CQRS.Internal.PersistedEvent (PersistedEvent, PersistedEvent'(..), shrink)
 import           Data.CQRS.Memory (newEventStore, newEventStream, newStorage)
 import           Data.CQRS.SnapshotStore (nullSnapshotStore)
 import qualified Data.CQRS.Repository as R
 import           Data.CQRS.Types.EventStream (EventStream(..))
-import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StreamPosition (StreamPosition, infimum)
 import           Network.Wai.EventSource (ServerEvent(..))
 import qualified System.IO.Streams as Streams
@@ -51,7 +51,7 @@ eventSourcingThread qs eventStream serverEvents publishedEvents = do
       -- Process all the events.
       p1 <- (esReadEventStream eventStream) p0 $ \inputStream -> do
         drain inputStream $ \(p, event) -> do
-          processEvents (peAggregateId event) [event]
+          processEvents (pepAggregateId event) [shrink event]
           return p
       -- Next starting position?
       let pn = maybe p0 id p1

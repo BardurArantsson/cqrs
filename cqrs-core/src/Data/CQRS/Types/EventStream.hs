@@ -20,7 +20,7 @@ data EventStream i e = EventStream {
       -- order of increasing sequence number and the ordering is
       -- stable across calls and (assuming a persistent event store)
       -- also across different runs of the program.
-      esReadEventStream :: forall a. StreamPosition -> (InputStream (StreamPosition, PersistedEvent i e) -> IO a) -> IO a
+      esReadEventStream :: forall a. StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i e) -> IO a) -> IO a
     }
 
 -- | Transform 'EventStream' via an isomorphism for the events and
@@ -29,7 +29,7 @@ transform :: forall e e' i i' . Iso i' i -> Iso e' e -> EventStream i e -> Event
 transform (_, gi) (_, g) (EventStream readEventStream') =
     EventStream readEventStream
   where
-    readEventStream :: StreamPosition -> (InputStream (StreamPosition, PersistedEvent i' e') -> IO a) -> IO a
+    readEventStream :: StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i' e') -> IO a) -> IO a
     readEventStream p' f = do
       readEventStream' p' $ \is -> do
         SC.map (\(p, e) -> (p, bimap gi g e)) is >>= f

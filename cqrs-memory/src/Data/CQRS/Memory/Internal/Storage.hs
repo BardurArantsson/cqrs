@@ -2,7 +2,6 @@ module Data.CQRS.Memory.Internal.Storage
     ( Event(..)
     , Store(..)
     , Storage(..)
-    , eAggregateId
     , newStorage
     ) where
 
@@ -14,14 +13,11 @@ import           Data.Sequence (Seq)
 import qualified Data.Sequence as S
 
 data Event i e =
-    Event { ePersistedEvent :: PersistedEvent i e
+    Event { eAggregateId :: i
+          , ePersistedEvent :: PersistedEvent i e
           , eTimestamp :: Int64
           }
     deriving (Show)
-
--- | Extract aggregate ID of event.
-eAggregateId :: Event i e -> i
-eAggregateId (Event pe _) = peAggregateId pe
 
 data Store i e = Store
     { msEvents :: Seq (Event i e)

@@ -6,12 +6,10 @@ module Data.CQRS.Test.Internal.Utils
     , randomId
     ) where
 
-import           Control.Applicative ((<$>))
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad (replicateM)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
-import           Data.ByteString.Base64 as B64
 import           Data.List (sort)
 import           System.Random (randomR, randomRIO, getStdRandom, random)
 
@@ -39,10 +37,9 @@ randomByteString n = do
   w8 <- replicateM n $ liftIO $ getStdRandom random
   return $ B.pack w8
 
--- Generate random identifier. We use a longish base64 encoded string
--- (instead of binary) just for debuggability.
+-- Generate random identifier.
 randomId :: MonadIO m => m ByteString
-randomId = B64.encode <$> randomByteString 16
+randomId = randomByteString 16
 
 -- Choose a random element from list.
 chooseRandom :: MonadIO m => [a] -> m a

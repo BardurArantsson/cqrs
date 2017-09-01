@@ -61,7 +61,7 @@ execute' sql parameters = QueryT $ do
 query :: Text -> [SqlValue] -> (InputStream [SqlValue] -> QueryT IO a) -> QueryT IO a
 query sql parameters f = QueryT $ do
   c <- ask
-  liftIO $ unsafeQueryOrUpdate c sql parameters (\_ is -> unsafeRunQueryT c $ f is)
+  liftIO $ unsafeQuery c sql parameters (unsafeRunQueryT c . f)
 
 -- | Run a quest which is expected to return at most one result. Any
 -- result rows past the first will be __ignored__.
@@ -80,6 +80,11 @@ queryAll sql parameters =
 unsafeExecute :: Connection -> Text -> [SqlValue] -> IO (Maybe Int)
 unsafeExecute connection sql parameters =
   unsafeQueryOrUpdate connection sql parameters (\n _ -> pure n)
+
+-- | Execute query.
+unsafeQuery :: Connection -> Text -> [SqlValue] -> (InputStream [SqlValue] -> IO a) -> IO a
+unsafeQuery connection sql parameters f = do
+  unsafeQueryOrUpdate connection sql parameters (\_ is -> f is)
 
 -- | Execute query.
 unsafeQueryOrUpdate :: Connection -> Text -> [SqlValue] -> (Maybe Int -> InputStream [SqlValue] -> IO a) -> IO a

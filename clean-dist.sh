@@ -1,4 +1,4 @@
-#!/bin/bash -xe
+#!/bin/bash -x
 D="$(dirname $0)"
 
 # Make sure we're running in the project's root directory

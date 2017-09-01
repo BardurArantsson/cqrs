@@ -1,73 +1,66 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.CQRS.PostgreSQL.Internal.SnapshotStore
     ( newSnapshotStore
     ) where
 
-import           Control.Applicative ((<$>))
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.SnapshotStore (SnapshotStore(..))
 import           Data.CQRS.PostgreSQL.Internal.Query
 import           Data.CQRS.PostgreSQL.Internal.Transaction
-import           Data.CQRS.PostgreSQL.Internal.Tables
-import           Data.CQRS.PostgreSQL.Metadata
-import           Data.Int (Int32)
+import           Data.CQRS.PostgreSQL.Internal.Identifiers
 import           Data.Pool (Pool)
-import           Database.PostgreSQL.LibPQ (Connection)
-import           NeatInterpolation (text)
+import           Database.Peregrin.Metadata (Schema)
+import           Database.PostgreSQL.Simple (Connection, Binary(..))
 
-writeSnapshot :: Pool Connection -> Tables -> ByteString -> Snapshot ByteString -> IO ()
-writeSnapshot connectionPool tables aggregateId (Snapshot v d) =
+writeSnapshot :: Pool Connection -> Identifiers -> ByteString -> Snapshot ByteString -> IO ()
+writeSnapshot connectionPool identifiers aggregateId (Snapshot v d) =
   -- We ignore the possibility of data races with others trying to
   -- update the same snapshot since snapshots aren't important enough
   -- to merit the extra complexity.
   runTransactionP connectionPool $
-    execute upsertSnapshotSql
-      [ SqlByteArray $ Just aggregateId
-      , SqlByteArray $ Just d
-      , SqlInt32 $ Just v
-      ]
+    execute upsertSnapshotSql ( snapshotTable
+                              , Binary aggregateId
+                              , Binary d, v
+                              , Binary d, v
+                              )
   where
-    snapshotTable = tblSnapshot tables
+    snapshotTable = tblSnapshot identifiers
 
-    upsertSnapshotSql = [text|
-      INSERT INTO $snapshotTable
-                  ("aggregate_id", "data", "version")
-           VALUES ($$1, $$2, $$3)
-      ON CONFLICT ("aggregate_id")
-        DO UPDATE
-              SET "data" = $$2
-                , "version" = $$3
-    |]
+    upsertSnapshotSql =
+      "INSERT INTO ? \
+      \            (\"aggregate_id\", \"data\", \"version\") \
+      \     VALUES (?, ?, ?) \
+      \ON CONFLICT (\"aggregate_id\") \
+      \  DO UPDATE \
+      \        SET \"data\" = ? \
+      \          , \"version\" = ?"
 
-readSnapshot :: Pool Connection -> Tables -> ByteString -> IO (Maybe (Snapshot ByteString))
-readSnapshot connectionPool tables aggregateId =
+
+readSnapshot :: Pool Connection -> Identifiers -> ByteString -> IO (Maybe (Snapshot ByteString))
+readSnapshot connectionPool identifiers aggregateId =
   runTransactionP connectionPool $ do
-    -- Unpack columns from result.
-    let unpackColumns :: [SqlValue] -> (ByteString, Int32)
-        unpackColumns [ SqlByteArray (Just d)
-                      , SqlInt32 (Just v) ] = (d, v)
-        unpackColumns columns               = error $ badQueryResultMsg [show aggregateId] columns
     -- Run the query.
-    r <- fmap unpackColumns <$> query1 selectSnapshotSql [SqlByteArray $ Just aggregateId]
+    r <- query1 selectSnapshotSql ( snapshotTable
+                                  , Binary aggregateId
+                                  )
     case r of
       Just (d,v) -> return $ Just $ Snapshot v d
       Nothing    -> return Nothing
 
   where
-    snapshotTable = tblSnapshot tables
+    snapshotTable = tblSnapshot identifiers
 
-    selectSnapshotSql = [text|
-      SELECT "data", "version"
-        FROM $snapshotTable
-       WHERE "aggregate_id" = $$1
-    |]
+    selectSnapshotSql =
+      "SELECT \"data\", \"version\" \
+      \  FROM ? \
+      \ WHERE \"aggregate_id\" = ?"
 
 -- | Create an snapshot store backed by a PostgreSQL connection pool.
 newSnapshotStore :: Pool Connection -> Schema -> IO (SnapshotStore ByteString ByteString)
 newSnapshotStore connectionPool schema =
   return $ SnapshotStore
-    (writeSnapshot connectionPool tables)
-    (readSnapshot connectionPool tables)
+    (writeSnapshot connectionPool identifiers)
+    (readSnapshot connectionPool identifiers)
   where
-    tables = mkTables schema
+    identifiers = mkIdentifiers schema

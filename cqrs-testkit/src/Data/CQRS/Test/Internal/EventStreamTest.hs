@@ -66,7 +66,7 @@ readEventStream' startPosition f = do
 readEventStream :: StreamPosition -> ScopeM (Scope i e) [(i, PersistedEvent i e)]
 readEventStream startPosition = do
   eventStream <- fmap scopeEventStream ask
-  liftIO $ esReadEventStream eventStream startPosition (SC.map dropStreamPosition) >>= SL.toList
+  liftIO $ esReadEventStream eventStream startPosition (\is -> SC.map dropStreamPosition is >>= SL.toList)
   where
     dropStreamPosition (_, e) = (pepAggregateId e, shrink e)
 

@@ -1,5 +1,6 @@
 module Data.CQRS.PostgreSQL
-    ( newEventStore
+    ( Schema(..)
+    , newEventStore
     , newEventStream
     , newSnapshotStore
     ) where
@@ -7,3 +8,4 @@ module Data.CQRS.PostgreSQL
 import Data.CQRS.PostgreSQL.Internal.EventStore (newEventStore)
 import Data.CQRS.PostgreSQL.Internal.EventStream (newEventStream)
 import Data.CQRS.PostgreSQL.Internal.SnapshotStore (newSnapshotStore)
+import Database.Peregrin.Metadata (Schema(..))

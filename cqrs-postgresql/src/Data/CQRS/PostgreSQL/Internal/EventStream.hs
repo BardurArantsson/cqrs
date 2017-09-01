@@ -1,4 +1,4 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.CQRS.PostgreSQL.Internal.EventStream
     ( newEventStream
     ) where
@@ -10,42 +10,35 @@ import           Data.CQRS.Internal.StreamPosition
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.EventStream
 import           Data.CQRS.PostgreSQL.Internal.Query
-import           Data.CQRS.PostgreSQL.Internal.Tables
+import           Data.CQRS.PostgreSQL.Internal.Identifiers
 import           Data.CQRS.PostgreSQL.Internal.Transaction
-import           Data.CQRS.PostgreSQL.Metadata
-import           Database.PostgreSQL.LibPQ (Connection)
-import           NeatInterpolation (text)
+import           Database.Peregrin.Metadata
+import           Database.PostgreSQL.Simple (Connection)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
-readEventStream :: Pool Connection -> Tables -> StreamPosition -> (InputStream (StreamPosition, PersistedEvent' ByteString ByteString) -> IO a) -> IO a
-readEventStream connectionPool tables sp@(StreamPosition sp0) f =
+readEventStream :: Pool Connection -> Identifiers -> StreamPosition -> (InputStream (StreamPosition, PersistedEvent' ByteString ByteString) -> IO a) -> IO a
+readEventStream connectionPool identifiers (StreamPosition sp0) f =
   runTransactionP connectionPool $
-    query sqlReadEvents [ SqlInt64 $ Just sp0 ] $ \is ->
+    query sqlReadEvents (eventTable, sp0) $ \is ->
       liftIO (SC.map unpack is) >>= (liftIO . f)
   where
     -- Unpack result columns
-    unpack [ SqlInt64 (Just lTimestamp)
-           , SqlByteArray (Just aggregateId)
-           , SqlByteArray (Just eventData)
-           , SqlInt32 (Just sequenceNumber)
-           , SqlInt64 (Just timestampMillis)
-           ] = (StreamPosition lTimestamp, PersistedEvent' aggregateId (PersistedEvent eventData sequenceNumber timestampMillis))
-    unpack columns = error $ badQueryResultMsg [show sp] columns
+    unpack (lTimestamp, aggregateId, eventData, sequenceNumber, timestampMillis) =
+        (StreamPosition lTimestamp, PersistedEvent' aggregateId (PersistedEvent eventData sequenceNumber timestampMillis))
     -- SQL
-    eventTable = tblEvent tables
+    eventTable = tblEvent identifiers
 
-    sqlReadEvents = [text|
-        SELECT "l_timestamp", "aggregate_id", "event_data", "seq_no", "timestamp"
-          FROM $eventTable
-         WHERE "l_timestamp" > $$1
-      ORDER BY "l_timestamp" ASC
-    |]
+    sqlReadEvents =
+      "   SELECT \"l_timestamp\", \"aggregate_id\", \"event_data\", \"seq_no\", \"timestamp\" \
+      \     FROM ? \
+      \    WHERE \"l_timestamp\" > ? \
+      \ ORDER BY \"l_timestamp\" ASC"
 
 newEventStream :: Pool Connection -> Schema -> IO (EventStream ByteString ByteString)
 newEventStream connectionPool schema =
   return EventStream
-    { esReadEventStream = readEventStream connectionPool tables
+    { esReadEventStream = readEventStream connectionPool identifiers
     }
   where
-    tables = mkTables schema
+    identifiers = mkIdentifiers schema

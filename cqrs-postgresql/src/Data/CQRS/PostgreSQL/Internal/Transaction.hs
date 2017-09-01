@@ -6,13 +6,12 @@ module Data.CQRS.PostgreSQL.Internal.Transaction
        , runTransactionP
        ) where
 
-import           Control.Exception (throwIO)
+import           Control.Exception (throwIO, SomeException)
 import           Control.Exception.Enclosed (catchAny)
 import           Control.Monad (void)
-import           Control.Exception (SomeException)
 import           Data.CQRS.PostgreSQL.Internal.Query
 import           Data.Pool (Pool, withResource)
-import           Database.PostgreSQL.LibPQ (Connection)
+import           Database.PostgreSQL.Simple (Connection)
 
 -- | Run query in a transaction.
 runTransaction :: forall a . Connection -> QueryT IO a -> IO a
@@ -35,7 +34,7 @@ runTransaction connection q = do
           -- pool in some indeterminate state).
           throwIO e
 
-    tx sql = void $ unsafeExecute connection sql [ ]
+    tx sql = void $ unsafeExecute connection sql ()
 
     begin = tx "START TRANSACTION ISOLATION LEVEL REPEATABLE READ;"
     commit = tx "COMMIT TRANSACTION;"

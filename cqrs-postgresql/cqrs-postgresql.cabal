@@ -17,29 +17,23 @@ Source-Repository head
 Library
   build-depends:      base >= 4.9 && < 5
                     , bytestring >= 0.9.0.1
-                    , bytestring-lexing >= 0.5 && < 0.6
                     , cqrs-core >= 0.11.0 && < 0.12.0
                     , enclosed-exceptions >= 1.0.1 && < 2
                     , io-streams >= 1.2 && < 2
-                    , neat-interpolation >= 0.3.2 && < 0.4
+                    , peregrin >= 0.2.0 && < 0.3
+                    , postgresql-simple >= 0.5.3.0 && < 0.6
                     , resource-pool >= 0.2.1 && < 0.3
-                    , postgresql-libpq >= 0.9.0.1 && < 0.10
-                    , text >= 1.0 && < 2
                     , transformers >= 0.5.2 && < 0.6
   default-language:   Haskell2010
   ghc-options:        -Wall
   hs-source-dirs:     src
   exposed-modules:    Data.CQRS.PostgreSQL
-                      Data.CQRS.PostgreSQL.Metadata
                       Data.CQRS.PostgreSQL.Migrations
                       Data.CQRS.PostgreSQL.Internal.EventStore
                       Data.CQRS.PostgreSQL.Internal.EventStream
-                      Data.CQRS.PostgreSQL.Internal.Migration
-                      Data.CQRS.PostgreSQL.Internal.QueryError
+                      Data.CQRS.PostgreSQL.Internal.Identifiers
                       Data.CQRS.PostgreSQL.Internal.Query
                       Data.CQRS.PostgreSQL.Internal.SnapshotStore
-                      Data.CQRS.PostgreSQL.Internal.SqlValue
-                      Data.CQRS.PostgreSQL.Internal.Tables
                       Data.CQRS.PostgreSQL.Internal.Transaction
 
 Test-Suite tests
@@ -52,10 +46,9 @@ Test-Suite tests
                     , cqrs-testkit >= 0.11.0 && < 0.12.0
                     , io-streams >= 1.2 && < 2
                     , pg-harness-client >= 0.4.0 && < 0.5.0
-                    , postgresql-libpq >= 0.9.0.1 && < 0.10
+                    , postgresql-simple >= 0.5.2.1 && < 0.6
                     , random >= 1.1 && < 2
                     , resource-pool >= 0.2.1 && < 0.3
-                    , text >= 1.0 && < 2
                     , transformers >= 0.5.2 && < 0.6
                     -- Self-dependency
                     , cqrs-postgresql
@@ -63,5 +56,4 @@ Test-Suite tests
                     , hspec >= 2.2.0 && < 3.0
   default-language:   Haskell2010
   ghc-options:        -Wall
-  other-modules:      Data.CQRS.PostgreSQL.Internal.MigrationSpec
-                      Data.CQRS.PostgreSQL.Internal.QuerySpec
+  other-modules:      Data.CQRS.PostgreSQL.Internal.QuerySpec

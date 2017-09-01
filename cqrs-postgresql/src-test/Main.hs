@@ -3,14 +3,12 @@ module Main ( main ) where
 
 import           Control.Applicative ((<$>))
 import           Control.Monad (forM_)
-import qualified Database.PostgreSQL.LibPQ as P
-import           Data.CQRS.PostgreSQL ( newEventStore
+import           Data.CQRS.PostgreSQL ( Schema(..)
+                                      , newEventStore
                                       , newEventStream
                                       , newSnapshotStore
                                       )
 import           Data.CQRS.PostgreSQL.Migrations
-import           Data.CQRS.PostgreSQL.Metadata
-import           Data.CQRS.PostgreSQL.Internal.MigrationSpec ( mkApplyMigrationsSpec )
 import           Data.CQRS.PostgreSQL.Internal.QuerySpec ( mkQuerySpec )
 import           Data.CQRS.Test.TestKit ( mkEventStoreSpec
                                         , mkEventStreamSpec
@@ -22,6 +20,7 @@ import           Data.Pool ( createPool
                            , withResource
                            , destroyAllResources
                            )
+import           Database.PostgreSQL.Simple (connectPostgreSQL, close)
 import qualified Database.PostgreSQL.Harness.Client as H
 import           Test.Hspec
 
@@ -34,7 +33,7 @@ main = do
   -- database for every connection pool.
   let mkConnectionPool = do
         connectionString <- H.toConnectionString <$> H.createTemporaryDatabase url
-        createPool (P.connectdb connectionString) P.finish 1 1 5
+        createPool (connectPostgreSQL connectionString) close 1 1 5
   -- Make sure we test both in the default schema and with a named schema
   forM_ [DefaultSchema, NamedSchema "foobar"] $ \schema -> do
     -- Setup for TestKit
@@ -49,7 +48,6 @@ main = do
     -- Run the tests
     hspec $ do
        mkQuerySpec mkConnectionPool
-       mkApplyMigrationsSpec mkConnectionPool
        mkSnapshotStoreSpec $ testKitSettings {
                                  tksMakeContext = (`newSnapshotStore` schema)
                              }

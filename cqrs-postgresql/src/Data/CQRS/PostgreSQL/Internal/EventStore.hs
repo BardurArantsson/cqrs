@@ -1,4 +1,4 @@
-{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Data.CQRS.PostgreSQL.Internal.EventStore
        ( newEventStore
        ) where
@@ -12,16 +12,20 @@ import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as C
 import           Data.CQRS.Types.EventStore (EventStore(..), StoreError(..))
-import           Data.CQRS.PostgreSQL.Internal.QueryError
+import           Data.CQRS.PostgreSQL.Internal.Identifiers
 import           Data.CQRS.PostgreSQL.Internal.Query
-import           Data.CQRS.PostgreSQL.Internal.Tables
 import           Data.CQRS.PostgreSQL.Internal.Transaction
-import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Int (Int32)
-import           Database.PostgreSQL.LibPQ (Connection)
+import           Database.Peregrin.Metadata (Schema)
+import           Database.PostgreSQL.Simple (Connection, SqlError(..), Only(..), Binary(..))
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
-import           NeatInterpolation (text)
+
+-- | Is the given 'SqlError' a duplicate key exception? This
+-- function is meant for use with 'catchJust'.
+isDuplicateKey :: SqlError -> Maybe ()
+isDuplicateKey se | sqlState se == "23505" = Just ()
+                  | otherwise              = Nothing
 
 -- Store events for a given aggregate. We do not have a separate table
 -- storing aggregate (ID -> version) mappings, which would ordinarily
@@ -39,8 +43,8 @@ import           NeatInterpolation (text)
 -- A's events.  However, in PostgreSQL the initial read that B
 -- performs cannot see A's events because PostgreSQL's version of
 -- REPEATABLE READ prevents phantom reads.
-storeEvents :: Pool Connection -> Tables -> Chunk ByteString ByteString -> IO ()
-storeEvents cp tables chunk =
+storeEvents :: Pool Connection -> Identifiers -> Chunk ByteString ByteString -> IO ()
+storeEvents cp identifiers chunk =
   translateExceptions aggregateId $
     runTransactionP cp $
       forM_ events $ \e ->
@@ -48,11 +52,12 @@ storeEvents cp tables chunk =
         -- events because it must (by contract) be exactly the same as
         -- the 'aggregateId' parameter.
         execute sqlInsertEvent
-          [ SqlByteArray $ Just aggregateId
-          , SqlByteArray $ Just $ peEvent e
-          , SqlInt32 $ Just $ peSequenceNumber e
-          , SqlInt64 $ Just $ peTimestampMillis e
-          ]
+          ( eventTable
+          , Binary aggregateId
+          , Binary $ peEvent e
+          , peSequenceNumber e
+          , peTimestampMillis e
+          )
 
   where
     (aggregateId, events) = C.toList chunk
@@ -61,58 +66,45 @@ storeEvents cp tables chunk =
       catchJust isDuplicateKey action $ \_ ->
         throw $ VersionConflict aid
     -- SQL for event insertion
-    eventTable = tblEvent tables
-    sqlInsertEvent = [text|
-      INSERT INTO $eventTable
-                  ("aggregate_id", "event_data", "seq_no", "timestamp")
-           VALUES ($$1, $$2, $$3, $$4)
-    |]
+    eventTable = tblEvent identifiers
+    sqlInsertEvent =
+      "INSERT INTO ? \
+      \            (\"aggregate_id\", \"event_data\", \"seq_no\", \"timestamp\") \
+      \     VALUES (?, ?, ?, ?)"
 
-retrieveEvents :: Pool Connection -> Tables -> ByteString -> Int32 -> (InputStream (PersistedEvent ByteString ByteString) -> IO a) -> IO a
-retrieveEvents cp tables aggregateId v0 f =
-   runTransactionP cp $ do
-     let params = [ SqlByteArray $ Just aggregateId
-                  , SqlInt32 $ Just v0
-                  ]
-     query sqlSelectEvent params $ \is ->
+retrieveEvents :: Pool Connection -> Identifiers -> ByteString -> Int32 -> (InputStream (PersistedEvent ByteString ByteString) -> IO a) -> IO a
+retrieveEvents cp identifiers aggregateId v0 f =
+   runTransactionP cp $
+     query sqlSelectEvent (eventTable, Binary aggregateId, v0) $ \is ->
        liftIO (SC.map unpack is) >>= (liftIO . f)
   where
-    unpack [ SqlInt32 (Just sequenceNumber)
-           , SqlByteArray (Just eventData)
-           , SqlInt64 (Just timestampMillis)
-           ] = PersistedEvent eventData sequenceNumber timestampMillis
-    unpack columns = error $ badQueryResultMsg [show aggregateId, show v0] columns
+    unpack (eventData, sequenceNumber, timestampMillis) =
+      PersistedEvent eventData sequenceNumber timestampMillis
 
-    eventTable = tblEvent tables
+    eventTable = tblEvent identifiers
 
-    sqlSelectEvent = [text|
-        SELECT "seq_no", "event_data", "timestamp"
-          FROM $eventTable
-         WHERE "aggregate_id" = $$1
-           AND "seq_no" > $$2
-      ORDER BY "seq_no" ASC
-    |]
+    sqlSelectEvent =
+      "  SELECT \"event_data\", \"seq_no\", \"timestamp\" \
+      \    FROM ? \
+      \   WHERE \"aggregate_id\" = ? \
+      \     AND \"seq_no\" > ? \
+      \ORDER BY \"seq_no\" ASC"
 
-retrieveAllEvents :: Pool Connection -> Tables -> (InputStream (PersistedEvent' ByteString ByteString) -> IO a) -> IO a
-retrieveAllEvents cp tables f =
+retrieveAllEvents :: Pool Connection -> Identifiers -> (InputStream (PersistedEvent' ByteString ByteString) -> IO a) -> IO a
+retrieveAllEvents cp identifiers f =
   runTransactionP cp $
-    query sqlSelectAllEvents [ ] $ \is ->
+    query sqlSelectAllEvents (Only eventTable) $ \is ->
       liftIO (SC.map unpack is) >>= (liftIO . f)
   where
-    unpack [ SqlByteArray (Just aggregateId)
-           , SqlInt32 (Just sequenceNumber)
-           , SqlByteArray (Just eventData)
-           , SqlInt64 (Just timestampMillis)
-           ] = grow aggregateId $ PersistedEvent eventData sequenceNumber timestampMillis
-    unpack columns = error $ badQueryResultMsg [] columns
+    unpack (aggregateId, sequenceNumber, eventData, timestampMillis) =
+        grow aggregateId $ PersistedEvent eventData sequenceNumber timestampMillis
 
-    eventTable = tblEvent tables
+    eventTable = tblEvent identifiers
 
-    sqlSelectAllEvents = [text|
-        SELECT "aggregate_id", "seq_no", "event_data", "timestamp"
-          FROM $eventTable
-      ORDER BY "aggregate_id", "seq_no" ASC
-    |]
+    sqlSelectAllEvents =
+      "  SELECT \"aggregate_id\", \"seq_no\", \"event_data\", \"timestamp\" \
+      \    FROM ? \
+      \ORDER BY \"aggregate_id\", \"seq_no\" ASC"
 
 -- | Create an event store backed by a PostgreSQL connection pool.
 -- The database which the connections go to must have an appropriate
@@ -120,9 +112,9 @@ retrieveAllEvents cp tables f =
 newEventStore :: Pool Connection -> Schema -> IO (EventStore ByteString ByteString)
 newEventStore connectionPool schema =
   return EventStore
-    { esStoreEvents = storeEvents connectionPool tables
-    , esRetrieveEvents = retrieveEvents connectionPool tables
-    , esRetrieveAllEvents = retrieveAllEvents connectionPool tables
+    { esStoreEvents = storeEvents connectionPool identifiers
+    , esRetrieveEvents = retrieveEvents connectionPool identifiers
+    , esRetrieveAllEvents = retrieveAllEvents connectionPool identifiers
     }
   where
-    tables = mkTables schema
+    identifiers = mkIdentifiers schema

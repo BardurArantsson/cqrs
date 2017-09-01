@@ -76,7 +76,7 @@ queryAll :: Text -> [SqlValue] -> QueryT IO [[SqlValue]]
 queryAll sql parameters =
   query sql parameters (liftIO . SL.toList)
 
--- | Execute query, ignoring the result.
+-- | Execute query, returning the number of updated rows.
 unsafeExecute :: Connection -> Text -> [SqlValue] -> IO (Maybe Int)
 unsafeExecute connection sql parameters =
   unsafeQueryOrUpdate connection sql parameters (\n _ -> pure n)

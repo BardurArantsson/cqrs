@@ -36,7 +36,7 @@ import           Data.Text (Text)
 import           Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import           Data.Typeable (Typeable)
 import           Database.PostgreSQL.LibPQ (Connection, Oid(..), Format(..), ExecStatus(..), Column(..), Row(..), FieldCode(..))
-import qualified Database.PostgreSQL.LibPQ as P
+import qualified Database.PostgreSQL.LibPQ as LP
 import           GHC.Generics (Generic)
 import qualified System.IO.Streams as Streams
 import           System.IO.Streams (InputStream)
@@ -121,7 +121,7 @@ fromSqlValue connection (SqlByteArray a) =
   case a of
     Nothing -> return Nothing
     Just a' -> do
-      x <- P.escapeByteaConn connection a'
+      x <- LP.escapeByteaConn connection a'
       case x of
         Nothing -> error "Conversion failed"
         Just x' -> return $ Just (Oid 17, x', Text)
@@ -142,7 +142,7 @@ fromSqlValue _ _ = error "fromSqlValue: Parameter conversion failed"
 toSqlValue :: (Oid, Maybe ByteString) -> IO SqlValue
 toSqlValue (oid, mvalue) =
   case oid of
-    Oid 17 -> c P.unescapeBytea SqlByteArray
+    Oid 17 -> c LP.unescapeBytea SqlByteArray
     Oid 16 -> c (return . readBoolean) SqlBool
     Oid 20 -> c (return . fmap fst . readSigned readDecimal) SqlInt64
     Oid 21 -> c (return . fmap fst . readSigned readDecimal) SqlInt16
@@ -205,11 +205,11 @@ queryImpl connection sql parameters f = do
   -- Run the query
   r <- liftIO open
   -- Check the status
-  status <- liftIO $ P.resultStatus r
+  status <- liftIO $ LP.resultStatus r
   if isOk status
     then do
       -- How many rows affected?
-      cmdTuples <- liftIO $ P.cmdTuples r
+      cmdTuples <- liftIO $ LP.cmdTuples r
       n <- case cmdTuples of
         Nothing -> return Nothing
         Just x -> return $ fst <$> readDecimal x
@@ -217,9 +217,9 @@ queryImpl connection sql parameters f = do
       makeInputStream r >>= f n
     else do
       -- Throw exception
-      sqlState <- liftIO $ P.resultErrorField r DiagSqlstate
-      statusMessage <- liftIO $ P.resStatus status
-      errorMessage <- liftIO $ P.resultErrorMessage r
+      sqlState <- liftIO $ LP.resultErrorField r DiagSqlstate
+      statusMessage <- liftIO $ LP.resStatus status
+      errorMessage <- liftIO $ LP.resultErrorMessage r
       throwIO QueryError { qeSqlState = sqlState
                          , qeStatusMessage = statusMessage
                          , qeErrorMessage = errorMessage
@@ -232,27 +232,27 @@ queryImpl connection sql parameters f = do
 
     open = do
       parameters' <- forM parameters $ fromSqlValue connection
-      mr <- P.execParams connection (encodeUtf8 sql) parameters' Text
+      mr <- LP.execParams connection (encodeUtf8 sql) parameters' Text
       case mr of
         Nothing -> error "No result set; something is very wrong"
         Just r -> return r
 
-    makeInputStream :: P.Result -> m (InputStream [SqlValue])
+    makeInputStream :: LP.Result -> m (InputStream [SqlValue])
     makeInputStream r = do
-      Col nFields <- liftIO $ P.nfields r
-      Row nRows <- liftIO $ P.ntuples r
-      let columns = map P.toColumn [0.. nFields - 1]
+      Col nFields <- liftIO $ LP.nfields r
+      Row nRows <- liftIO $ LP.ntuples r
+      let columns = map LP.toColumn [0.. nFields - 1]
       let loop i = if i >= nRows
                      then
                        return Nothing
                      else do
-                       columnValues <- forM columns $ getSqlVal r $ P.toRow i
+                       columnValues <- forM columns $ getSqlVal r $ LP.toRow i
                        return $ Just (columnValues, i + 1)
       liftIO $ SC.unfoldM loop 0
 
     getSqlVal r row c = do
-      mval <- P.getvalue' r row c
-      typ <- P.ftype r c
+      mval <- LP.getvalue' r row c
+      typ <- LP.ftype r c
       toSqlValue (typ, mval)
 
 -- Run a query and return a list of the rows in the result. __This will read

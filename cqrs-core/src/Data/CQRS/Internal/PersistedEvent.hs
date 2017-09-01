@@ -9,18 +9,19 @@ module Data.CQRS.Internal.PersistedEvent
 
 import Control.DeepSeq (NFData(..))
 import Data.Bifunctor (Bifunctor(..))
-import Data.Int (Int32)
+import Data.Int (Int32, Int64)
 import GHC.Generics (Generic)
 
 -- | Persisted Event.
 data PersistedEvent i e =
-  PersistedEvent { peEvent :: !e              -- ^ Event.
-                 , peSequenceNumber :: !Int32 -- ^ Sequence number within the aggregate.
+  PersistedEvent { peEvent :: !e                  -- ^ Event.
+                 , peSequenceNumber :: !Int32     -- ^ Sequence number within the aggregate.
+                 , peTimestampMillis :: !Int64    -- ^ Elapsed milliseconds since the epoch.
                  }
   deriving (Show, Eq, Generic)
 
 instance Bifunctor PersistedEvent where
-  bimap _ g (PersistedEvent e seqNo) = PersistedEvent (g e) seqNo
+  bimap _ g (PersistedEvent e seqNo t) = PersistedEvent (g e) seqNo t
 
 instance (NFData e, NFData i) => NFData (PersistedEvent i e)
 

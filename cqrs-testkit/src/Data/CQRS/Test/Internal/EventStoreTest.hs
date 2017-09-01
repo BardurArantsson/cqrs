@@ -45,8 +45,8 @@ mkEventStoreSpec testKitSettings = do
     it "should be able to retrieve stored events" $ do
       aggregateId <- randomId
       -- Write two events.
-      let expectedEvents = [ PersistedEvent "test event 0" 0
-                           , PersistedEvent "test event 1" 1
+      let expectedEvents = [ PersistedEvent "test event 0" 0 55
+                           , PersistedEvent "test event 1" 1 56
                            ]
       storeEvents aggregateId expectedEvents
       -- Retrieve the stored events.
@@ -57,8 +57,8 @@ mkEventStoreSpec testKitSettings = do
     it "should throw a VersionConflict exception when storing conflicting events in a single operation" $ do
       aggregateId <- randomId
       -- Write two conflicting events.
-      let conflictingEvents = [ PersistedEvent "test event 0" 0
-                              , PersistedEvent "test event 1" 0
+      let conflictingEvents = [ PersistedEvent "test event 0" 0 99
+                              , PersistedEvent "test event 1" 0 100
                               ]
       storeEvents aggregateId conflictingEvents `shouldThrow` VersionConflict aggregateId
       -- Make sure we didn't actually store any events
@@ -68,10 +68,10 @@ mkEventStoreSpec testKitSettings = do
     it "should throw a VersionConflict exception when storing conflicting events in multiple operations" $ do
       aggregateId <- randomId
       -- Write a single event
-      let initialEvent = PersistedEvent "test event 0" 0
+      let initialEvent = PersistedEvent "test event 0" 0 32
       storeEvents aggregateId [initialEvent]
       -- Write the event that should conflict
-      let conflictingEvents = [ PersistedEvent "test event 1" 0]
+      let conflictingEvents = [ PersistedEvent "test event 1" 0 33]
       storeEvents aggregateId conflictingEvents `shouldThrow` VersionConflict aggregateId
       -- Make sure we didn't write the second event
       storedEvents <- readEvents aggregateId

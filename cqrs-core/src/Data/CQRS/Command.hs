@@ -26,6 +26,7 @@ import qualified Data.CQRS.Internal.Aggregate as A
 import           Data.CQRS.Internal.Repository
 import           Data.CQRS.Types.AggregateAction (AggregateAction)
 import qualified Data.CQRS.Types.Chunk as C
+import           Data.CQRS.Types.Clock (Clock, getMillis)
 import           Data.CQRS.Types.EventStore (EventStore(..))
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
@@ -66,6 +67,7 @@ type UnitOfWorkM a e = StateT (UnitOfWork a e)
 
 data UnitOfWork a e =
    UnitOfWork { uowAggregate :: Aggregate a e
+              , uowClock :: Clock
               }
 
 -- | Run a command against a repository.
@@ -84,7 +86,7 @@ writeChanges aggregateId aggregate = CommandT $ do
   let eventStore = repositoryEventStore repository
   let publishEvents = repositoryPublishEvents repository
   -- Convert all the accumulated events to a chunk
-  let maybeChunk = C.fromList aggregateId $ map (\(v, e) -> PersistedEvent e v) (A.versionedEvents aggregate)
+  let maybeChunk = C.fromList aggregateId $ map (\(v, (e, ts)) -> PersistedEvent e v ts) (A.versionedEvents aggregate)
   -- We only care if new events were generated
   forM_ maybeChunk $ \chunk -> do
     -- Commit events to event store.
@@ -109,6 +111,10 @@ writeChanges aggregateId aggregate = CommandT $ do
 getAggregateAction :: (Monad m) => CommandT i a e m (AggregateAction a e)
 getAggregateAction = CommandT $ liftM (repositoryAggregateAction . commandRepository) ask
 
+-- Get the system clock from the repository.
+getClock :: (Monad m) => CommandT i a e m Clock
+getClock = CommandT $ liftM (settingsClock . repositorySettings .commandRepository) ask
+
 -- | Create a new aggregate using the supplied unit of work. Throws a
 -- 'Data.CQRS.Types.VersionConflict' exception if there is already an
 -- aggregate with the given aggregate ID. __NOTE__: The exception may
@@ -125,7 +131,8 @@ createAggregate aggregateId unitOfWork = do
   -- concurrently.
   (r, s) <- do
     aggregateAction <- getAggregateAction
-    runStateT run $ UnitOfWork $ A.emptyAggregate aggregateAction
+    clock <- getClock
+    runStateT run $ UnitOfWork (A.emptyAggregate aggregateAction) clock
   -- Write out any changes.
   writeChanges aggregateId $ uowAggregate s
   -- Return the result of the computation
@@ -145,15 +152,17 @@ createAggregate aggregateId unitOfWork = do
 -- that are lifted into the nested monad may be performed
 -- regardless. (This is due to optimistic concurrency control.)
 updateAggregate :: (MonadIO m) => i -> (UnitOfWorkT a e (CommandT i a e m) a -> UnitOfWorkT a e (CommandT i a e m) b) -> CommandT i a e m (Maybe b)
-updateAggregate aggregateId unitOfWork = CommandT $ do
-  aggregate <- getByIdFromEventStore aggregateId
-  unCommandT $ case A.aggregateValue $ aggregate of
-    Nothing -> do
-      return Nothing
-    Just _ -> do
-      (r, s) <- runStateT run $ UnitOfWork aggregate
-      writeChanges aggregateId $ uowAggregate s
-      return $ Just r
+updateAggregate aggregateId unitOfWork = do
+  clock <- getClock
+  CommandT $ do
+    aggregate <- getByIdFromEventStore aggregateId
+    unCommandT $ case A.aggregateValue $ aggregate of
+      Nothing -> do
+        return Nothing
+      Just _ -> do
+        (r, s) <- runStateT run $ UnitOfWork aggregate clock
+        writeChanges aggregateId $ uowAggregate s
+        return $ Just r
   where
     run = do
       let getter = liftM (fromJust . A.aggregateValue . uowAggregate) get
@@ -182,4 +191,6 @@ getByIdFromEventStore aggregateId = do
 -- | Publish event for the current aggregate.
 publishEvent :: (MonadIO m, NFData a, NFData e) => e -> UnitOfWorkT a e (CommandT i a e m) ()
 publishEvent event = UnitOfWorkT $ do
-  modify' (\s -> s { uowAggregate = A.publishEvent (uowAggregate s) event })
+  clock <- fmap uowClock get
+  ts <- liftIO $ getMillis clock
+  modify' (\s -> s { uowAggregate = A.publishEvent (uowAggregate s) event ts })

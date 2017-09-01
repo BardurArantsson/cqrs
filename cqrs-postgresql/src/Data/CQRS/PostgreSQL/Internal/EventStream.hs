@@ -30,13 +30,14 @@ readEventStream connectionPool tables sp@(StreamPosition sp0) f = do
            , SqlByteArray (Just aggregateId)
            , SqlByteArray (Just eventData)
            , SqlInt32 (Just sequenceNumber)
-           ] = (StreamPosition lTimestamp, PersistedEvent' aggregateId (PersistedEvent eventData sequenceNumber))
+           , SqlInt64 (Just timestampMillis)
+           ] = (StreamPosition lTimestamp, PersistedEvent' aggregateId (PersistedEvent eventData sequenceNumber timestampMillis))
     unpack columns = error $ badQueryResultMsg [show sp] columns
     -- SQL
     eventTable = tblEvent tables
 
     sqlReadEvents = [text|
-        SELECT "l_timestamp", "aggregate_id", "event_data", "seq_no"
+        SELECT "l_timestamp", "aggregate_id", "event_data", "seq_no", "timestamp"
           FROM $eventTable
          WHERE "l_timestamp" > $$1
       ORDER BY "l_timestamp" ASC

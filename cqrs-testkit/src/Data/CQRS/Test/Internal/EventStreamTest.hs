@@ -6,14 +6,14 @@ module Data.CQRS.Test.Internal.EventStreamTest
     ) where
 
 import           Control.Monad (forM_, replicateM)
-import           Control.Monad.Trans.Reader (ask)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.PersistedEvent
-import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
+import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, ask, mkRunScope)
 import           Data.CQRS.Test.Internal.TestKitSettings
 import           Data.CQRS.Test.Internal.Utils (randomId, randomByteString, chunkRandomly)
 import qualified Data.CQRS.Types.Chunk as C
+import           Data.CQRS.Types.Clock
 import           Data.CQRS.Types.EventStore
 import           Data.CQRS.Types.EventStream
 import           Data.CQRS.Types.StreamPosition
@@ -32,6 +32,7 @@ import           Test.HUnit (assertBool)
 -- Ambient data for test scope for each spec.
 data Scope i e = Scope { scopeEventStream :: EventStream i e
                        , scopeEventStore :: EventStore i e
+                       , scopeClock :: Clock
                        }
 
 -- | Assert that two event streams are observationally equivalent
@@ -73,15 +74,14 @@ readEventStream startPosition = do
 -- stream implementation against those settings.
 mkEventStreamSpec :: TestKitSettings a (EventStream ByteString ByteString, EventStore ByteString ByteString) -> Spec
 mkEventStreamSpec testKitSettings = do
-
+  -- Tests:
   describe "EventStream implementation" $ do
-
     it "should support enumeration from the beginning" $ do
       -- Setup
       aggregateId <- randomId
-      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0)
-                           , (aggregateId, PersistedEvent "6" 1)
-                           , (aggregateId, PersistedEvent "9" 2)
+      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0 42)
+                           , (aggregateId, PersistedEvent "6" 1 43)
+                           , (aggregateId, PersistedEvent "9" 2 44)
                            ]
       let expectedEvents' = map snd expectedEvents
       storeEvents aggregateId expectedEvents'
@@ -110,11 +110,11 @@ mkEventStreamSpec testKitSettings = do
     it "should support resumption from a previously reached position" $ do
       -- Setup: Create a few events
       aggregateId <- randomId
-      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0)
-                           , (aggregateId, PersistedEvent "6" 1)
-                           , (aggregateId, PersistedEvent "9" 2)
-                           , (aggregateId, PersistedEvent "12" 3)
-                           , (aggregateId, PersistedEvent "15" 4)
+      let expectedEvents = [ (aggregateId, PersistedEvent "3" 0 100)
+                           , (aggregateId, PersistedEvent "6" 1 101)
+                           , (aggregateId, PersistedEvent "9" 2 102)
+                           , (aggregateId, PersistedEvent "12" 3 103)
+                           , (aggregateId, PersistedEvent "15" 4 104)
                            ]
       storeEvents aggregateId $ map snd expectedEvents
       -- Setup: Read until we've seen two events
@@ -132,9 +132,11 @@ mkEventStreamSpec testKitSettings = do
     it msg scope = Hspec.it msg $ runScope scope
     runScope = mkRunScope testKitSettings $ \a -> do
       -- Repository setup
+      clock <- autoIncrementingClock 1000 1
       (archiveStore, eventStore) <- (tksMakeContext testKitSettings) a
       -- Build the ambient state.
-      return $ Scope archiveStore eventStore
+      return $ Scope archiveStore eventStore clock
+
 
 -- Publish a sequence of events.
 publishEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
@@ -154,11 +156,12 @@ publishEvents aggregateId pes = do
 -- Generate and publish a series of events to an aggregate.
 genEvents :: forall i . i -> Int32 -> Int32 -> ScopeM (Scope i ByteString) [(i, PersistedEvent i ByteString)]
 genEvents aggregateId n i0 = do
-  pes <- liftIO $ genEvents'
+  pes <- genEvents'
   publishEvents aggregateId pes
   return $ map (\pe -> (aggregateId, pe)) pes
   where
-    genEvents' :: IO [PersistedEvent i ByteString]
     genEvents' = do
-      es <- replicateM (fromIntegral n) $ randomByteString 8
-      return $ map (\(i, e) -> PersistedEvent e (i0 + i)) (zip [0..] es)
+      clock <- fmap scopeClock ask
+      es <- liftIO $ replicateM (fromIntegral n) $ randomByteString 8
+      tss <- liftIO $ replicateM (fromIntegral n) $ getMillis clock
+      return $ map (\(i, e, ts) -> PersistedEvent e (i0 + i) ts) (zip3 [0..] es tss)

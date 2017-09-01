@@ -2,19 +2,22 @@ module Data.CQRS.Internal.Repository
     ( Repository(..)
     , Settings(..)
     , setSnapshotFrequency
+    , setClock
     , defaultSettings
     , newRepository
     ) where
 
 import           Control.Monad (void)
-import           Data.CQRS.Types.Chunk (Chunk)
-import           Data.CQRS.Types.EventStore (EventStore(..))
-import           Data.CQRS.Types.SnapshotStore (SnapshotStore)
-import           Data.CQRS.Types.AggregateAction (AggregateAction)
+import           Data.CQRS.Types.AggregateAction
+import           Data.CQRS.Types.Chunk
+import           Data.CQRS.Types.Clock
+import           Data.CQRS.Types.EventStore
+import           Data.CQRS.Types.SnapshotStore
 
 -- | Repository settings
 data Settings = Settings
     { settingsSnapshotFrequency :: Maybe Int
+    , settingsClock :: Clock
     }
 
 -- | Default repository settings:
@@ -24,6 +27,7 @@ data Settings = Settings
 defaultSettings :: Settings
 defaultSettings = Settings
     { settingsSnapshotFrequency = Nothing
+    , settingsClock = operatingSystemClock
     }
 
 -- | Set the snapshot frequency. 0 or negative means
@@ -33,6 +37,10 @@ setSnapshotFrequency :: Int -> Settings -> Settings
 setSnapshotFrequency n s = s { settingsSnapshotFrequency = n' }
   where n' | n <= 0    = Nothing
            | otherwise = Just n
+
+-- | Set the system clock to use.
+setClock :: Clock -> Settings -> Settings
+setClock clock s = s { settingsClock = clock }
 
 -- | Repository consisting of an event store and an event bus.
 data Repository i a e = Repository

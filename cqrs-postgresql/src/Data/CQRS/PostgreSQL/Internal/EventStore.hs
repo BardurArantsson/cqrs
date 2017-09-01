@@ -17,7 +17,6 @@ import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Internal.Tables
 import           Data.CQRS.PostgreSQL.Metadata
 import           Data.Int (Int32)
-import           Data.Time.Clock.POSIX (getPOSIXTime)
 import           Database.PostgreSQL.LibPQ (Connection)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
@@ -44,8 +43,6 @@ storeEvents cp tables chunk = do
   translateExceptions aggregateId $ do
     runTransactionP cp $ do
       forM_ events $ \e -> do
-        -- Add a timestamp for informational purposes.
-        timestamp <- liftIO $ fmap (\t -> round $ t * 1000) $ getPOSIXTime
         -- Insert. We ignore the aggregateID specified on the actual
         -- events because it must (by contract) be exactly the same as
         -- the 'aggregateId' parameter.
@@ -53,7 +50,7 @@ storeEvents cp tables chunk = do
           [ SqlByteArray $ Just aggregateId
           , SqlByteArray $ Just $ peEvent e
           , SqlInt32 $ Just $ peSequenceNumber e
-          , SqlInt64 $ Just $ timestamp
+          , SqlInt64 $ Just $ peTimestampMillis e
           ]
 
   where
@@ -81,13 +78,14 @@ retrieveEvents cp tables aggregateId v0 f =
   where
     unpack [ SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
-           ] = PersistedEvent eventData sequenceNumber
+           , SqlInt64 (Just timestampMillis)
+           ] = PersistedEvent eventData sequenceNumber timestampMillis
     unpack columns = error $ badQueryResultMsg [show aggregateId, show v0] columns
 
     eventTable = tblEvent tables
 
     sqlSelectEvent = [text|
-        SELECT "seq_no", "event_data"
+        SELECT "seq_no", "event_data", "timestamp"
           FROM $eventTable
          WHERE "aggregate_id" = $$1
            AND "seq_no" > $$2
@@ -103,13 +101,14 @@ retrieveAllEvents cp tables f =
     unpack [ SqlByteArray (Just aggregateId)
            , SqlInt32 (Just sequenceNumber)
            , SqlByteArray (Just eventData)
-           ] = grow aggregateId $ PersistedEvent eventData sequenceNumber
+           , SqlInt64 (Just timestampMillis)
+           ] = grow aggregateId $ PersistedEvent eventData sequenceNumber timestampMillis
     unpack columns = error $ badQueryResultMsg [] columns
 
     eventTable = tblEvent tables
 
     sqlSelectAllEvents = [text|
-        SELECT "aggregate_id", "seq_no", "event_data"
+        SELECT "aggregate_id", "seq_no", "event_data", "timestamp"
           FROM $eventTable
       ORDER BY "aggregate_id", "seq_no" ASC
     |]

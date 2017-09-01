@@ -21,6 +21,7 @@ Library
                      , containers >= 0.5 && < 1
                      , deepseq >= 1.4 && < 2
                      , io-streams >= 1.2 && < 2
+                     , time >= 1.6 && < 1.7
                      , transformers >= 0.5.2 && < 0.6
   Default-language:    Haskell2010
   ghc-options:         -Wall
@@ -34,6 +35,7 @@ Library
                        Data.CQRS.Internal.StreamPosition
                        Data.CQRS.Types.AggregateAction
                        Data.CQRS.Types.Chunk
+                       Data.CQRS.Types.Clock
                        Data.CQRS.Types.EventStore
                        Data.CQRS.Types.EventStream
                        Data.CQRS.Types.Iso

@@ -16,7 +16,7 @@ import           Data.CQRS.Types.AggregateAction (AggregateAction)
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import qualified Data.Foldable as F
-import           Data.Int (Int32)
+import           Data.Int (Int32, Int64)
 import           Data.Sequence (Seq, (|>))
 import qualified Data.Sequence as S
 import           Data.Typeable (Typeable)
@@ -25,7 +25,7 @@ import           Data.Typeable (Typeable)
 data Aggregate a e = Aggregate
     { aggregateAction :: AggregateAction a e
     , aggregateValue :: Maybe a
-    , aggregateEvents :: Seq e
+    , aggregateEvents :: Seq (e, Int64)
     , aggregateVersion0 :: {-# UNPACK #-} !Int32
     , aggregateSnapshotVersion :: {-# UNPACK #-} !Int32
     } deriving (Typeable)
@@ -56,14 +56,14 @@ applyEvent a pe =
       }
 
 -- Publish event to aggregate.
-publishEvent :: (NFData e, NFData a) => Aggregate a e -> e -> Aggregate a e
-publishEvent a e =
+publishEvent :: (NFData e, NFData a) => Aggregate a e -> e -> Int64 -> Aggregate a e
+publishEvent a e ts =
     a { aggregateValue = Just $!! (aggregateAction a) (aggregateValue a) e
-      , aggregateEvents = (|>) (aggregateEvents a) $!! e
+      , aggregateEvents = (|>) (aggregateEvents a) $!! (e, ts)
       }
 
 -- Return events with attached version numbers.
-versionedEvents :: Aggregate a e -> [(Int32, e)]
+versionedEvents :: Aggregate a e -> [(Int32, (e, Int64))]
 versionedEvents a = zip [v0+1 ..] evs
   where
     evs = F.toList $ aggregateEvents a

@@ -5,6 +5,7 @@ module Data.CQRS.Repository
       -- * Settings
     , Settings
     , setSnapshotFrequency
+    , setClock
     , defaultSettings
     ) where
 

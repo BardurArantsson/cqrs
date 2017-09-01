@@ -15,6 +15,7 @@ import           Data.CQRS.Command (CommandT)
 import qualified Data.CQRS.Command as C
 import           Data.CQRS.Repository
 import qualified Data.CQRS.Types.Chunk as Chunk
+import           Data.CQRS.Types.Clock
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.EventStore (EventStore)
 import           Data.CQRS.Types.SnapshotStore (nullSnapshotStore, SnapshotStore)
@@ -22,7 +23,7 @@ import           Data.CQRS.Test.Internal.AggregateAction (byteStringAggregateAct
 import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
 import           Data.CQRS.Test.Internal.TestKitSettings
 import           Data.CQRS.Test.Internal.Utils (randomId)
-import           Data.Int (Int32)
+import           Data.Int (Int32, Int64)
 import           Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import qualified Data.List.NonEmpty as NEL
 import           Data.Maybe (fromJust)
@@ -32,11 +33,11 @@ import           Test.HUnit (assertBool)
 
 -- Ambient data for test scope for each spec.
 data Scope i a e = Scope { scopeRepository :: Repository i a e
-                         , scopePublishedEvents :: IORef [(i, e, Int32)]
+                         , scopePublishedEvents :: IORef [(i, e, Int32, Int64)]
                          }
 
 -- Assert that the given list of events was published.
-assertDidPublish :: (Show e, Eq e, Show i, Eq i) => [(i, e, Int32)] -> ScopeM (Scope i a e) ()
+assertDidPublish :: (Show e, Eq e, Show i, Eq i) => [(i, e, Int32, Int64)] -> ScopeM (Scope i a e) ()
 assertDidPublish expectedEvents = do
   publishedEventsRef <- fmap scopePublishedEvents $ ask
   verify $ do
@@ -61,11 +62,15 @@ mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a 
   publishedEventsRef <- newIORef []
   let publish chunk =
         atomicModifyIORef' publishedEventsRef $ \events ->
-            (events ++ NEL.toList (fmap (\(PersistedEvent e s) -> (i, e, s)) events'), ())
+            (events ++ NEL.toList (fmap (\(PersistedEvent e s ts) -> (i, e, s, ts)) events'), ())
           where (i, events') = Chunk.toList chunk
   -- Repository setup
+  clock <- autoIncrementingClock 100 3
   (eventStore, snapshotStore) <- (tksMakeContext testKitSettings) a
-  let settings = setSnapshotFrequency snapshotFrequency $ defaultSettings
+  let settings =
+        setSnapshotFrequency snapshotFrequency $
+        setClock clock $
+          defaultSettings
   let repository = newRepository settings byteStringAggregateAction eventStore snapshotStore publish
   -- Build the ambient state.
   return $ Scope repository publishedEventsRef
@@ -102,7 +107,7 @@ mkSpec suffix runScope = do
       -- Should have updated aggregate value
       verify $ a `shouldBe` "3"
       -- Should have published appropriate event
-      assertDidPublish [ (aggregateId, "3", 0) ]
+      assertDidPublish [ (aggregateId, "3", 0, 100) ]
 
     it "should support creating an aggregate and loading it" $ do
       -- Exercise
@@ -111,7 +116,7 @@ mkSpec suffix runScope = do
       a <- loadAggregate aggregateId
       verify $ a `shouldBe` "4"
       -- Should have published appropriate event
-      assertDidPublish [ (aggregateId, "4", 0) ]
+      assertDidPublish [ (aggregateId, "4", 0, 100) ]
 
     it "should support publishing >1 events to an aggregate (1 txn)" $ do
       -- Exercise
@@ -120,8 +125,8 @@ mkSpec suffix runScope = do
       a <- loadAggregate aggregateId
       verify $ a `shouldBe` "71"
       -- Should have published two events
-      assertDidPublish [ (aggregateId, "7", 0)
-                       , (aggregateId, "1", 1)
+      assertDidPublish [ (aggregateId, "7", 0, 100)
+                       , (aggregateId, "1", 1, 103)
                        ]
 
     it "should support publishing >1 events to an aggregate (2 txns)" $ do
@@ -135,8 +140,8 @@ mkSpec suffix runScope = do
       a <- loadAggregate aggregateId
       verify $ a `shouldBe` "97"
       -- Should have published two events.
-      assertDidPublish [ (aggregateId, "9", 0)
-                       , (aggregateId, "7", 1)
+      assertDidPublish [ (aggregateId, "9", 0, 100)
+                       , (aggregateId, "7", 1, 103)
                        ]
 
     it "should support publishing a large number of events to an aggregate" $ do
@@ -181,9 +186,9 @@ mkSpec suffix runScope = do
       verify $ a0 `shouldBe` "345"
       verify $ a1 `shouldBe` "1"
       -- Should have published events in order of publishing
-      assertDidPublish [ (aggregateId0, "34", 0)
-                       , (aggregateId1,  "1", 0)
-                       , (aggregateId0,  "5", 1)
+      assertDidPublish [ (aggregateId0, "34", 0, 100)
+                       , (aggregateId1,  "1", 0, 103)
+                       , (aggregateId0,  "5", 1, 106)
                        ]
 
     it "'getter' function returns up-to-date values when updating an aggregate" $ do
@@ -201,8 +206,8 @@ mkSpec suffix runScope = do
       -- Should have received an updated value in a''
       verify $ a' `shouldBe` "xy"
       -- Should have published events
-      assertDidPublish [ (aggregateId, "x", 0)
-                       , (aggregateId, "y", 1)
+      assertDidPublish [ (aggregateId, "x", 0, 100)
+                       , (aggregateId, "y", 1, 103)
                        ]
 
     it "'getter' function returns up-to-date values when creating an aggregate" $ do
@@ -220,7 +225,7 @@ mkSpec suffix runScope = do
       -- Should have received (Just "x") in a'' since we'd just published an "x" event
       verify $ a' `shouldBe` (Just "x")
       -- Should have published event
-      assertDidPublish [ (aggregateId, "x", 0) ]
+      assertDidPublish [ (aggregateId, "x", 0, 100) ]
 
   where
     -- Boilerplate avoidance

@@ -2,6 +2,7 @@
 module Data.CQRS.PostgreSQL.Metadata
     ( Schema(..)
     , Table(..)
+    , Typ(..)
     , toSQL
     , quoteToSQL
     ) where
@@ -15,6 +16,9 @@ data Schema = DefaultSchema
 
 -- | Table name, including which schema it is in.
 data Table = Table Schema Text
+
+-- | Type name, including which schema it is in.
+data Typ = Typ Schema Text
 
 -- | Convert metadata object identifier to its quoted SQL
 -- representation.
@@ -43,3 +47,8 @@ instance ToSQL Schema where
 instance ToSQL Table where
   toSQL (Table schema tableId) =
     T.concat [toSQL schema, ".", quoteToSQL tableId]
+
+instance ToSQL Typ where
+  toSQL (Typ schema tableId) =
+    T.concat [toSQL schema, ".", quoteToSQL tableId]
+

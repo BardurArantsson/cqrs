@@ -16,7 +16,7 @@ module Data.CQRS.Command
     ) where
 
 import           Control.DeepSeq (NFData)
-import           Control.Monad (forM, join, liftM, void, when)
+import           Control.Monad (join, liftM, void)
 import           Control.Monad.IO.Class (MonadIO, liftIO)
 import           Control.Monad.Trans.Class (MonadTrans(..), lift)
 import           Control.Monad.Trans.State.Strict (StateT, runStateT, get, modify')
@@ -25,6 +25,7 @@ import           Data.CQRS.Internal.Aggregate (Aggregate)
 import qualified Data.CQRS.Internal.Aggregate as A
 import           Data.CQRS.Internal.Repository
 import           Data.CQRS.Types.AggregateAction (AggregateAction)
+import qualified Data.CQRS.Types.Chunk as C
 import           Data.CQRS.Types.EventStore (EventStore(..))
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
@@ -82,15 +83,14 @@ writeChanges aggregateId aggregate = CommandT $ do
   let snapshotStore = repositorySnapshotStore repository
   let eventStore = repositoryEventStore repository
   let publishEvents = repositoryPublishEvents repository
-  -- Convert all the accumulated events to PersistedEvent
-  versionedEvents <- forM (A.versionedEvents aggregate) $ \(v, e) -> do
-    return $ PersistedEvent e v
+  -- Convert all the accumulated events to a chunk
+  let maybeChunk = C.fromList aggregateId $ map (\(v, e) -> PersistedEvent e v) (A.versionedEvents aggregate)
   -- We only care if new events were generated
-  when (length versionedEvents > 0) $ do
+  forM_ maybeChunk $ \chunk -> do
     -- Commit events to event store.
-    liftIO $ (esStoreEvents eventStore) aggregateId versionedEvents
+    liftIO $ (esStoreEvents eventStore) chunk
     -- Publish events written so far.
-    liftIO $ publishEvents (aggregateId, versionedEvents)
+    liftIO $ publishEvents chunk
     -- Write out the snapshot (if applicable).
     forM_ (settingsSnapshotFrequency $ repositorySettings repository) $ \snapshotFrequency -> do
       forM_ (snapshotForAggregate $ fromIntegral snapshotFrequency) $ \snapshot -> do

@@ -5,13 +5,16 @@ import           Control.Concurrent.Async (concurrently)
 import           Control.Concurrent.STM (atomically, TChan)
 import qualified Control.Concurrent.STM.TChan as C
 import           Control.Concurrent.STM.TVar (TVar, newTVarIO)
-import           Control.Monad (void, forever, when)
-import           Data.CQRS.Internal.PersistedEvent (PersistedEvent, PersistedEvent'(..), shrink)
+import           Control.Monad (void, forever, when, forM_)
+import           Data.CQRS.Internal.PersistedEvent (PersistedEvent'(..), shrink)
 import           Data.CQRS.Memory (newEventStore, newEventStream, newStorage)
 import           Data.CQRS.SnapshotStore (nullSnapshotStore)
 import qualified Data.CQRS.Repository as R
+import           Data.CQRS.Types.Chunk (Chunk)
+import qualified Data.CQRS.Types.Chunk as Chunk
 import           Data.CQRS.Types.EventStream (EventStream(..))
 import           Data.CQRS.Types.StreamPosition (StreamPosition, infimum)
+import qualified Data.List.NonEmpty as NEL
 import           Network.Wai.EventSource (ServerEvent(..))
 import qualified System.IO.Streams as Streams
 import           System.IO.Streams (InputStream)
@@ -36,7 +39,7 @@ drain inputStream f = go Nothing
 
 
 -- Source of refresh events to the browser. Never returns.
-eventSourcingThread :: TVar QueryState -> EventStream TaskId Event -> TChan ServerEvent -> TChan (TaskId, [PersistedEvent TaskId Event]) -> IO ()
+eventSourcingThread :: TVar QueryState -> EventStream TaskId Event -> TChan ServerEvent -> TChan (Chunk TaskId Event) -> IO ()
 eventSourcingThread qs eventStream serverEvents publishedEvents = do
   -- Start two threads. One thread just periodically polls the event
   -- stream -- starting at the last position that was successfully
@@ -51,7 +54,7 @@ eventSourcingThread qs eventStream serverEvents publishedEvents = do
       -- Process all the events.
       p1 <- (esReadEventStream eventStream) p0 $ \inputStream -> do
         drain inputStream $ \(p, event) -> do
-          processEvents (pepAggregateId event) [shrink event]
+          forM_ (Chunk.fromList (pepAggregateId event) [shrink event]) $ processEvents
           return p
       -- Next starting position?
       let pn = maybe p0 id p1
@@ -64,17 +67,19 @@ eventSourcingThread qs eventStream serverEvents publishedEvents = do
       -- Main event-sourcing loop; never terminates
       forever $ do
         -- Wait for events to be published.
-        (aggregateId, evs) <- atomically $ C.readTChan publishedEvents
-        processEvents aggregateId evs
+        chunk <- atomically $ C.readTChan publishedEvents
+        processEvents chunk
         -- Send out notifications to client
-        let notifications = updateNotifications (aggregateId, evs) mempty
+        let (aggregateId, evs) = Chunk.toList chunk
+        let notifications = updateNotifications (aggregateId, NEL.toList evs) mempty
         when (notifications /= mempty) $ do
           atomically $ C.writeTChan serverEvents $! toServerEvent $ notifications
 
-    processEvents :: TaskId -> [PersistedEvent TaskId Event] -> IO ()
-    processEvents aggregateId evs = do
-      -- Supply to Query to update its state.
-      runQuery qs $ reactToEvents aggregateId evs
+    processEvents :: Chunk TaskId Event -> IO ()
+    processEvents chunk = do
+      let (aggregateId, evs) = Chunk.toList chunk
+      runQuery qs $ reactToEvents aggregateId $ NEL.toList evs
+
 
 -- Start serving the application.
 startServing :: IO ()
@@ -88,7 +93,7 @@ startServing = do
   publishedEvents <- atomically $ C.newTChan
 
   -- Publish events
-  let publishEvents events = atomically $ C.writeTChan publishedEvents events
+  let publishEvents = atomically . C.writeTChan publishedEvents
 
   -- Create memory CQRS backing storage
   storage <- newStorage

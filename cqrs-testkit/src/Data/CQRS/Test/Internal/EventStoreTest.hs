@@ -5,12 +5,14 @@ module Data.CQRS.Test.Internal.EventStoreTest
     ) where
 
 import           Control.Exception.Lifted (try)
+import           Control.Monad (forM_)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Test.Internal.TestKitSettings
 import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, ask)
 import qualified Data.CQRS.Test.Internal.Scope as S
 import           Data.CQRS.Test.Internal.Utils (randomId)
+import qualified Data.CQRS.Types.Chunk as C
 import           Data.CQRS.Types.EventStore (EventStore, StoreError(VersionConflict))
 import qualified Data.CQRS.Types.EventStore as ES
 import           Data.CQRS.Types.PersistedEvent
@@ -26,7 +28,7 @@ data Scope i e = Scope { scopeEventStore :: EventStore i e
 storeEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
 storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
-  liftIO $ (ES.esStoreEvents eventStore) aggregateId events
+  liftIO $ forM_ (C.fromList aggregateId events) $ ES.esStoreEvents eventStore
 
 -- Read all events for a given aggregate.
 readEvents :: i -> ScopeM (Scope i e) [PersistedEvent i e]

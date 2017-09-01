@@ -10,6 +10,8 @@ import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
 import           Data.Pool (Pool)
 import           Data.CQRS.Internal.PersistedEvent
+import           Data.CQRS.Types.Chunk (Chunk)
+import qualified Data.CQRS.Types.Chunk as C
 import           Data.CQRS.Types.EventStore (EventStore(..), StoreError(..))
 import           Data.CQRS.PostgreSQL.Internal.Utils
 import           Data.CQRS.PostgreSQL.Internal.Tables
@@ -37,11 +39,11 @@ import           NeatInterpolation (text)
 -- A's events.  However, in PostgreSQL the initial read that B
 -- performs cannot see A's events because READ COMMITTED doesn't
 -- permit it, even if the events were inserts.
-storeEvents :: Pool Connection -> Tables -> ByteString -> [PersistedEvent ByteString ByteString] -> IO ()
-storeEvents cp tables aggregateId es = do
+storeEvents :: Pool Connection -> Tables -> Chunk ByteString ByteString -> IO ()
+storeEvents cp tables chunk = do
   translateExceptions aggregateId $ do
     runTransactionP cp $ do
-      forM_ es $ \e -> do
+      forM_ events $ \e -> do
         -- Add a timestamp for informational purposes.
         timestamp <- liftIO $ fmap (\t -> round $ t * 1000) $ getPOSIXTime
         -- Insert. We ignore the aggregateID specified on the actual
@@ -55,6 +57,7 @@ storeEvents cp tables aggregateId es = do
           ]
 
   where
+    (aggregateId, events) = C.toList chunk
     -- Translate duplicate key exceptions into StoreError.
     translateExceptions aid action =
       catchJust isDuplicateKey action $ \_ ->

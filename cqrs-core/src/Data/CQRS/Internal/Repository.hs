@@ -7,8 +7,8 @@ module Data.CQRS.Internal.Repository
     ) where
 
 import           Control.Monad (void)
+import           Data.CQRS.Types.Chunk (Chunk)
 import           Data.CQRS.Types.EventStore (EventStore(..))
-import           Data.CQRS.Types.PersistedEvent (PersistedEvent)
 import           Data.CQRS.Types.SnapshotStore (SnapshotStore)
 import           Data.CQRS.Types.AggregateAction (AggregateAction)
 
@@ -39,12 +39,12 @@ data Repository i a e = Repository
     { repositoryAggregateAction :: AggregateAction a e
     , repositoryEventStore :: EventStore i e
     , repositorySnapshotStore :: SnapshotStore i a
-    , repositoryPublishEvents :: (i, [PersistedEvent i e]) -> IO ()
+    , repositoryPublishEvents :: Chunk i e -> IO ()
     , repositorySettings :: Settings
     }
 
 -- | Create a repository.
-newRepository :: Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> ((i, [PersistedEvent i e]) -> IO r) -> Repository i a e
+newRepository :: Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> (Chunk i e -> IO r) -> Repository i a e
 newRepository settings aggregateAction eventStore snapshotStore publishEvents = do
   Repository aggregateAction eventStore snapshotStore publishEvents' settings
   where

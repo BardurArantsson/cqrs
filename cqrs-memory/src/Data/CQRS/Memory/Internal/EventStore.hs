@@ -7,6 +7,8 @@ import           Control.Concurrent.STM.TVar (TVar, readTVar, modifyTVar')
 import           Control.Monad (when, forM_)
 import           Control.Monad.STM (throwSTM)
 import           Data.CQRS.Internal.PersistedEvent
+import           Data.CQRS.Types.Chunk (Chunk)
+import qualified Data.CQRS.Types.Chunk as C
 import           Data.CQRS.Types.EventStore (EventStore(..))
 import           Data.CQRS.Types.StoreError (StoreError(..))
 import           Data.CQRS.Memory.Internal.Storage
@@ -21,8 +23,8 @@ import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.List as SL
 import qualified System.IO.Streams.Combinators as SC
 
-storeEvents :: (Show i, Eq i, Typeable i) => Storage i e -> i -> [PersistedEvent i e] -> IO ()
-storeEvents (Storage store) aggregateId newEvents = atomically $ do
+storeEvents :: (Show i, Eq i, Typeable i) => Storage i e -> Chunk i e -> IO ()
+storeEvents (Storage store) chunk = atomically $ do
     runSanityChecks
     -- Append to the list of all previous events
     modifyTVar' store addEvents
@@ -31,7 +33,7 @@ storeEvents (Storage store) aggregateId newEvents = atomically $ do
         -- Base timestamp
         let baseTimestamp = msCurrentTimestamp ms in
         -- Tag all the events with our wrapper
-        let newTaggedEvents = map (\(e,ts) -> Event aggregateId e ts) (zip newEvents [baseTimestamp..]) in
+        let newTaggedEvents = map (\(e,ts) -> Event aggregateId e ts) (zip (F.toList newEvents) [baseTimestamp..]) in
         -- Update the storage
         ms { msEvents = (msEvents ms) >< (S.fromList newTaggedEvents)
            , msCurrentTimestamp = baseTimestamp + (fromIntegral $ length newTaggedEvents)
@@ -53,11 +55,13 @@ storeEvents (Storage store) aggregateId newEvents = atomically $ do
       let v0 = if null newEvents then
                    vE + 1
                  else
-                   minimum $ map peSequenceNumber newEvents
+                   minimum $ fmap peSequenceNumber newEvents
       when (v0 /= vE + 1) $ error "Mismatched version numbers"
 
     lastStoredVersion [ ] = (-1)
     lastStoredVersion es  = maximum $ map peSequenceNumber es
+
+    (aggregateId, newEvents) = C.toList chunk
 
 retrieveEvents :: (Eq i) => Storage i e -> i -> Int32 -> (InputStream (PersistedEvent i e) -> IO a) -> IO a
 retrieveEvents (Storage store) aggregateId v0 f = do

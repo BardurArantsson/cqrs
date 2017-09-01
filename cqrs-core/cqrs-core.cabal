@@ -33,6 +33,7 @@ Library
                        Data.CQRS.Internal.Repository
                        Data.CQRS.Internal.StreamPosition
                        Data.CQRS.Types.AggregateAction
+                       Data.CQRS.Types.Chunk
                        Data.CQRS.Types.EventStore
                        Data.CQRS.Types.EventStream
                        Data.CQRS.Types.Iso

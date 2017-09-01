@@ -14,6 +14,7 @@ import qualified Data.ByteString as B
 import           Data.CQRS.Command (CommandT)
 import qualified Data.CQRS.Command as C
 import           Data.CQRS.Repository
+import qualified Data.CQRS.Types.Chunk as Chunk
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.EventStore (EventStore)
 import           Data.CQRS.Types.SnapshotStore (nullSnapshotStore, SnapshotStore)
@@ -23,6 +24,7 @@ import           Data.CQRS.Test.Internal.TestKitSettings
 import           Data.CQRS.Test.Internal.Utils (randomId)
 import           Data.Int (Int32)
 import           Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
+import qualified Data.List.NonEmpty as NEL
 import           Data.Maybe (fromJust)
 import qualified Test.Hspec as Hspec
 import           Test.Hspec (Spec, shouldBe)
@@ -57,8 +59,10 @@ mkRunScope' :: Int -> TestKitSettings s (EventStore ByteString ByteString, Snaps
 mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a -> do
   -- We collect all events published by the repository for verification
   publishedEventsRef <- newIORef []
-  let publish (i, events') = atomicModifyIORef' publishedEventsRef $ \events ->
-        (events ++ map (\(PersistedEvent e s) -> (i, e, s)) events', ())
+  let publish chunk =
+        atomicModifyIORef' publishedEventsRef $ \events ->
+            (events ++ NEL.toList (fmap (\(PersistedEvent e s) -> (i, e, s)) events'), ())
+          where (i, events') = Chunk.toList chunk
   -- Repository setup
   (eventStore, snapshotStore) <- (tksMakeContext testKitSettings) a
   let settings = setSnapshotFrequency snapshotFrequency $ defaultSettings

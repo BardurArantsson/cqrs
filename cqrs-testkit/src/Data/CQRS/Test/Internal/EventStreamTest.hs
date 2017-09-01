@@ -13,6 +13,7 @@ import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
 import           Data.CQRS.Test.Internal.TestKitSettings
 import           Data.CQRS.Test.Internal.Utils (randomId, randomByteString, chunkRandomly)
+import qualified Data.CQRS.Types.Chunk as C
 import           Data.CQRS.Types.EventStore
 import           Data.CQRS.Types.EventStream
 import           Data.CQRS.Types.StreamPosition
@@ -50,7 +51,11 @@ shouldHaveEventsEquivalentTo actualEvents expectedEvents =
 storeEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
 storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
-  liftIO $ (esStoreEvents eventStore) aggregateId events
+  liftIO $ storeEvents' eventStore aggregateId events
+
+storeEvents' :: EventStore i e -> i -> [PersistedEvent i e] -> IO ()
+storeEvents' eventStore aggregateId events =
+  forM_ (C.fromList aggregateId events) $ esStoreEvents eventStore
 
 readEventStream' :: StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i e) -> IO a) -> ScopeM (Scope i e) a
 readEventStream' startPosition f = do
@@ -136,11 +141,11 @@ publishEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
 publishEvents aggregateId pes = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ do
-    batches <- doChunk pes  -- Chunk list of events into randomly sized batches.
-    forM_ batches $ \batch -> do
-      chunks <- doChunk batch    -- Re-chunk each batch into (possibly) multiple command invokations.
-      forM_ chunks $ \chunk -> do
-        (esStoreEvents eventStore) aggregateId chunk
+    chunks <- doChunk pes  -- Chunk list of events into randomly sized chunks.
+    forM_ chunks $ \chunk -> do
+      chunks' <- doChunk chunk    -- Re-chunk each chunk into (possibly) multiple command invokations.
+      forM_ chunks' $ \chunk' -> do
+        storeEvents' eventStore aggregateId chunk'
   where
     doChunk xs = do
       n <- liftIO $ R.getStdRandom $ R.randomR (0, (length xs - 1) `div` 2)

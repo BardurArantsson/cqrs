@@ -8,6 +8,7 @@ module Data.CQRS.Types.EventStore
 
 import           Control.Monad ((>=>))
 import           Data.Bifunctor (bimap)
+import           Data.CQRS.Types.Chunk
 import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StoreError
@@ -22,7 +23,7 @@ data EventStore i e = EventStore {
       -- either all the events are stored, or none of them are (in the case of
       -- errors or conflicts). All given events __MUST__ have the same aggregate
       -- ID as specified in the first parameter.
-      esStoreEvents :: i -> [PersistedEvent i e] -> IO ()
+      esStoreEvents :: Chunk i e -> IO ()
     ,
       -- | Process sequence of events associated with the given aggregate.
       -- Only events at or after the given version number are supplied
@@ -45,16 +46,8 @@ transform :: forall e' e i' i . Iso i' i -> Iso e' e -> EventStore i e -> EventS
 transform (fi, gi) (fe, ge) (EventStore storeEvents retrieveEvents retrieveAllEvents) =
     EventStore storeEvents' retrieveEvents' retrieveAllEvents'
   where
-    storeEvents' :: i' -> [PersistedEvent i' e'] -> IO ()
-    storeEvents' aggregateId' =
-        -- To avoid redundant conversions, we 'map' the event
-        -- aggregate IDs by simply replacing them. This is valid since
-        -- the contract specifies that they must all equal the given
-        -- 'aggregateID' parameter. This is strictly a performance
-        -- optimization.
-        storeEvents aggregateId . map (bimap (const aggregateId) fe)
-      where
-        aggregateId = fi aggregateId'
+    storeEvents' :: Chunk i' e' -> IO ()
+    storeEvents' = storeEvents . bimap fi fe
 
     retrieveEvents' :: forall a . i' -> Int32 -> (InputStream (PersistedEvent i' e') -> IO a) -> IO a
     retrieveEvents' aggregateId' v0 p' =

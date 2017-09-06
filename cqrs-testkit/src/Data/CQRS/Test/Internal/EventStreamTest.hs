@@ -38,7 +38,7 @@ data Scope i e = Scope { scopeEventStream :: EventStream i e
 -- | Assert that two event streams are observationally equivalent
 -- assuming that events may appear in any order wrt. aggregate ID, as
 -- long as they respect the sequence number ordering.
-shouldHaveEventsEquivalentTo :: (Eq e, Show e, Show i, Ord i) => [(i, PersistedEvent i e)] -> [(i, PersistedEvent i e)] -> Expectation
+shouldHaveEventsEquivalentTo :: (Eq e, Show e, Show i, Ord i) => [(i, PersistedEvent e)] -> [(i, PersistedEvent e)] -> Expectation
 shouldHaveEventsEquivalentTo actualEvents expectedEvents =
     assertBool message (actualEvents' == expectedEvents')
   where
@@ -49,12 +49,12 @@ shouldHaveEventsEquivalentTo actualEvents expectedEvents =
     expectedEvents' = sortBy (compare `on` fst) expectedEvents
 
 -- Store given events in exactly the order given.
-storeEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
+storeEvents :: i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
 storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ storeEvents' eventStore aggregateId events
 
-storeEvents' :: EventStore i e -> i -> [PersistedEvent i e] -> IO ()
+storeEvents' :: EventStore i e -> i -> [PersistedEvent e] -> IO ()
 storeEvents' eventStore aggregateId events =
   forM_ (C.fromList aggregateId events) $ esStoreEvents eventStore
 
@@ -63,7 +63,7 @@ readEventStream' startPosition f = do
   eventStream <- fmap scopeEventStream ask
   liftIO $ esReadEventStream eventStream startPosition f
 
-readEventStream :: StreamPosition -> ScopeM (Scope i e) [(i, PersistedEvent i e)]
+readEventStream :: StreamPosition -> ScopeM (Scope i e) [(i, PersistedEvent e)]
 readEventStream startPosition = do
   eventStream <- fmap scopeEventStream ask
   liftIO $ esReadEventStream eventStream startPosition (\is -> SC.map dropStreamPosition is >>= SL.toList)
@@ -138,7 +138,7 @@ mkEventStreamSpec testKitSettings =
 
 
 -- Publish a sequence of events.
-publishEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
+publishEvents :: i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
 publishEvents aggregateId pes = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ do
@@ -153,7 +153,7 @@ publishEvents aggregateId pes = do
       liftIO $ chunkRandomly n xs
 
 -- Generate and publish a series of events to an aggregate.
-genEvents :: forall i . i -> Int32 -> Int32 -> ScopeM (Scope i ByteString) [(i, PersistedEvent i ByteString)]
+genEvents :: forall i . i -> Int32 -> Int32 -> ScopeM (Scope i ByteString) [(i, PersistedEvent ByteString)]
 genEvents aggregateId n i0 = do
   pes <- genEvents'
   publishEvents aggregateId pes

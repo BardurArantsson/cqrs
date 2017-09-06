@@ -25,13 +25,13 @@ newtype Scope i e = Scope { scopeEventStore :: EventStore i e
                           }
 
 -- Store given events in exactly the order given.
-storeEvents :: i -> [PersistedEvent i e] -> ScopeM (Scope i e) ()
+storeEvents :: i -> [PersistedEvent e] -> ScopeM (Scope i e) ()
 storeEvents aggregateId events = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ forM_ (C.fromList aggregateId events) $ ES.esStoreEvents eventStore
 
 -- Read all events for a given aggregate.
-readEvents :: i -> ScopeM (Scope i e) [PersistedEvent i e]
+readEvents :: i -> ScopeM (Scope i e) [PersistedEvent e]
 readEvents aggregateId = do
   eventStore <- fmap scopeEventStore ask
   liftIO $ ES.esRetrieveEvents eventStore aggregateId (-1) SL.toList

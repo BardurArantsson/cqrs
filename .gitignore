@@ -6,3 +6,4 @@ cabal.sandbox.config
 .idea
 *.iml
 /.ghc.environment.*
+/.stack-work

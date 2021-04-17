@@ -4,8 +4,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.PostgreSQL.Internal.Query
-       ( QueryT
-       , Query
+       ( Query
+       , QueryT(..)
        , execute
        , execute'
        , query

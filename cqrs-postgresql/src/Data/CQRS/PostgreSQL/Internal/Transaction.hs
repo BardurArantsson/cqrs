@@ -3,11 +3,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.PostgreSQL.Internal.Transaction
        ( runTransaction
+       , runTransactionIO
        , runTransactionP
+       , runTransactionPIO
        ) where
 
 import           Control.Exception (SomeException)
 import           Control.Monad (void)
+import           Control.Monad.Trans.Class (lift)
 import           Data.CQRS.PostgreSQL.Internal.Query
 import           Database.PostgreSQL.Simple (Connection)
 import           UnliftIO (MonadUnliftIO, catchAny, throwIO)
@@ -46,3 +49,14 @@ runTransactionP :: (MonadUnliftIO m) => Pool Connection -> QueryT m a -> m a
 runTransactionP pool action =
     withResource pool $ \c ->
       runTransaction c action
+
+-- | Run an I/O action inside a transaction.
+runTransactionIO :: (MonadUnliftIO m) => Connection -> m a -> m a
+runTransactionIO connection f = do
+  runTransaction connection $ QueryT $ lift f
+
+-- | Run an I/O action inside a transaction on a connection from the
+-- given pool.
+runTransactionPIO :: (MonadUnliftIO m) => Pool Connection -> (Connection -> m a) -> m a
+runTransactionPIO pool f =
+  withResource pool $ \c -> runTransactionIO c (f c)

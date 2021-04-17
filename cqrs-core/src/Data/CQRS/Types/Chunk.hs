@@ -15,7 +15,7 @@ import           Data.CQRS.Internal.PersistedEvent
 import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NEL
 
--- A non-empty chunk of events for a single aggregate.
+-- | A non-empty chunk of events for a single aggregate.
 data Chunk i e = Chunk !i !(NonEmpty (PersistedEvent e))
   deriving (Show, Eq, Generic)
 

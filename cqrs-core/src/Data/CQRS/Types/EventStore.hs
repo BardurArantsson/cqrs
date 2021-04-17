@@ -27,7 +27,7 @@ data EventStore i e = EventStore {
       -- ID as specified in the first parameter.
       esStoreEvents :: forall m . (MonadUnliftIO m) => Chunk i e -> m ()
     ,
-      -- | Process sequence of events associated with the given aggregate.
+      -- | Read sequence of events associated with the given aggregate.
       -- Only events at or after the given version number are supplied
       -- by the input stream. The events are supplied in increasing
       -- order of version number.

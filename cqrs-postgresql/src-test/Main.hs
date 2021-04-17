@@ -28,7 +28,7 @@ main :: IO ()
 main = do
   -- HSpec has no easy way to get "other" command line parameters, so
   -- we'll just settle for a hardcoded value here.
-  let url = "http://localhost:8900"
+  let url = "http://127.0.0.1:8900"
   -- Connection pool creation function. We use a fresh temporary
   -- database for every connection pool.
   let mkConnectionPool = do

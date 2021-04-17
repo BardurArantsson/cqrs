@@ -43,9 +43,11 @@ instance ToJSON Notifications where
     toJSON (Notifications ns) =
         object [ "notifications" .= toJSON (F.toList ns) ]
 
+instance Semigroup Notifications where
+    (<>) (Notifications ns) (Notifications ns') = Notifications (ns <> ns')
+
 instance Monoid Notifications where
     mempty = Notifications mempty
-    mappend (Notifications ns) (Notifications ns') = Notifications (ns <> ns')
 
 -- Update a Notifications value to account for the given persisted events.
 -- Ideally, we'd coalesce multiple notifications of the same types, but for

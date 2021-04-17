@@ -5,4 +5,3 @@ packages:
   cqrs-postgresql/
   cqrs-testkit/
   foleni/
-  unliftio-streams/

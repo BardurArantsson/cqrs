@@ -78,16 +78,6 @@ queryAll q parameters =
 unsafeExecute :: (MonadUnliftIO m, ToRow p) => Connection -> Query -> p -> m Int64
 unsafeExecute c q p = liftIO $ PS.execute c q p
 
--- | Declare a cursor.
-declareCursor :: (MonadUnliftIO m) => Query -> ReaderT Connection m Cursor
-declareCursor q = do
-  connection <- ask
-  liftIO $ PSC.declareCursor connection q
-
--- | Close cursor.
-closeCursor :: MonadUnliftIO m => Cursor -> ReaderT Connection m ()
-closeCursor cursor = liftIO $ PSC.closeCursor cursor
-
 -- | State for query execution.
 data BufferState a = Done [a]
                    | Rows [a]
@@ -143,6 +133,6 @@ query q parameters f = QueryT $ do
   connection <- ask
   q' <- liftIO $ Query <$> PS.formatQuery connection q parameters
   bracket
-    (declareCursor q')
-    closeCursor
+    (liftIO $ PSC.declareCursor connection q')
+    (\c -> liftIO $ PSC.closeCursor c)
     (\c -> unQueryT $ streamCursor c f)

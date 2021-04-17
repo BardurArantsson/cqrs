@@ -1,5 +1,6 @@
 module Data.CQRS.Types.StorageBackend
   ( StorageBackend(..)
+  , disableSnapshots
   , transformI
   , transformE
   , transformA
@@ -11,6 +12,7 @@ import qualified Data.CQRS.Types.EventStore as ES
 import           Data.CQRS.Types.Iso (Iso)
 import           Data.CQRS.Types.SnapshotStore (SnapshotStore)
 import qualified Data.CQRS.Types.SnapshotStore as SS
+import Data.CQRS.SnapshotStore (nullSnapshotStore)
 
 data StorageBackend a i e = StorageBackend {
     -- | Event store.
@@ -23,6 +25,10 @@ data StorageBackend a i e = StorageBackend {
 -- | Make a StorageBackend.
 newStorageBackend :: EventStore i e -> SnapshotStore i a -> StorageBackend a i e
 newStorageBackend eventStore snapshotStore = StorageBackend eventStore snapshotStore
+
+-- | Disable snapshots for the given 'StorageBackend'.
+disableSnapshots :: StorageBackend a i e -> StorageBackend b i e
+disableSnapshots (StorageBackend eventStore _) = StorageBackend eventStore nullSnapshotStore
 
 -- | Transform the identifier type of 'StorageBackend' using an
 -- isomorphism.

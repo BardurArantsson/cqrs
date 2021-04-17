@@ -3,6 +3,7 @@ module Data.CQRS.Types.StorageBackend
   , transformI
   , transformE
   , transformA
+  , newStorageBackend
   ) where
 
 import           Data.CQRS.Types.EventStore (EventStore)
@@ -18,6 +19,10 @@ data StorageBackend a i e = StorageBackend {
     -- | Snapshot store.
     sbSnapshotStore :: SnapshotStore i a
   }
+
+-- | Make a StorageBackend.
+newStorageBackend :: EventStore i e -> SnapshotStore i a -> StorageBackend a i e
+newStorageBackend eventStore snapshotStore = StorageBackend eventStore snapshotStore
 
 -- | Transform the identifier type of 'StorageBackend' using an
 -- isomorphism.

@@ -19,6 +19,7 @@ import qualified Data.CQRS.Types.Chunk as Chunk
 import           Data.CQRS.Types.Clock
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.EventStore (EventStore)
+import           Data.CQRS.Types.StorageBackend (newStorageBackend)
 import           Data.CQRS.Types.SnapshotStore (nullSnapshotStore, SnapshotStore)
 import           Data.CQRS.Test.Internal.AggregateAction (byteStringAggregateAction)
 import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
@@ -71,7 +72,8 @@ mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a 
   let settings =
         setSnapshotFrequency snapshotFrequency $
         setClock clock defaultSettings
-  let repository = newRepository settings byteStringAggregateAction eventStore snapshotStore publish
+  let storageBackend = newStorageBackend eventStore snapshotStore
+  let repository = newRepository settings byteStringAggregateAction storageBackend publish
   -- Build the ambient state.
   return $ Scope repository publishedEventsRef
 

@@ -13,8 +13,7 @@ import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
 import           Data.CQRS.Types.AggregateAction
 import           Data.CQRS.Types.Chunk
 import           Data.CQRS.Types.Clock
-import           Data.CQRS.Types.EventStore
-import           Data.CQRS.Types.SnapshotStore
+import           Data.CQRS.Types.StorageBackend
 
 -- | Repository settings
 data Settings = Settings
@@ -47,13 +46,12 @@ setClock clock s = s { settingsClock = clock }
 -- | Repository consisting of an event store and an event bus.
 data Repository i a e = Repository
     { repositoryAggregateAction :: AggregateAction a e
-    , repositoryEventStore :: EventStore i e
-    , repositorySnapshotStore :: SnapshotStore i a
+    , repositoryStorageBackend :: StorageBackend a i e
     , repositoryPublishEvents :: forall m . (MonadUnliftIO m) => Chunk i e -> m ()
     , repositorySettings :: Settings
     }
 
 -- | Create a repository.
-newRepository :: forall i a e . Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> (forall m . (MonadUnliftIO m) => Chunk i e -> m ()) -> Repository i a e
-newRepository settings aggregateAction eventStore snapshotStore publishEvents =
-  Repository aggregateAction eventStore snapshotStore publishEvents settings
+newRepository :: forall i a e . Settings -> AggregateAction a e -> StorageBackend a i e -> (forall m . (MonadUnliftIO m) => Chunk i e -> m ()) -> Repository i a e
+newRepository settings aggregateAction storageBackend publishEvents =
+  Repository aggregateAction storageBackend publishEvents settings

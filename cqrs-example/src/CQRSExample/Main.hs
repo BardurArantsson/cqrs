@@ -23,6 +23,7 @@ import qualified Data.CQRS.Types.EventStore as EventStore
 import           Data.CQRS.Types.EventStream (EventStream(..))
 import qualified Data.CQRS.Types.EventStream as EventStream
 import           Data.CQRS.Types.Iso (Iso)
+import           Data.CQRS.Types.StorageBackend (newStorageBackend)
 import           Data.CQRS.Types.StreamPosition (StreamPosition, infimum)
 import           Data.Either (fromRight)
 import qualified Data.List.NonEmpty as NEL
@@ -117,7 +118,7 @@ startServing backend = do
   let publishEvents = atomically . C.writeTChan publishedEvents
 
   -- Create backend
-  (eventStore, eventStream) <-
+  (storageBackend, eventStream) <-
     case backend of
       PostgreSQL -> do
         -- Use a pg-harness instance.
@@ -134,16 +135,16 @@ startServing backend = do
         withResource connectionPool $ flip migrate $ schema
         eventStream <- fmap (EventStream.transform identifierIso eventIso) (P.newEventStream connectionPool schema)
         eventStore <- fmap (EventStore.transform identifierIso eventIso) (P.newEventStore connectionPool schema)
-        return (eventStore, eventStream)
+        return (newStorageBackend eventStore nullSnapshotStore, eventStream)
       Memory -> do
         storage <- M.newStorage
         eventStore <- M.newEventStore storage
         eventStream <- M.newEventStream storage
-        return (eventStore, eventStream)
+        return (newStorageBackend eventStore nullSnapshotStore, eventStream)
 
   -- Create the resository
   let repositorySettings = R.setSnapshotFrequency 10 R.defaultSettings
-  let repository = R.newRepository repositorySettings aggregateAction eventStore nullSnapshotStore (liftIO . publishEvents)
+  let repository = R.newRepository repositorySettings aggregateAction storageBackend (liftIO . publishEvents)
 
   -- Start sourcing events.
   void $ forkIO $

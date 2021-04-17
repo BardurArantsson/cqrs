@@ -33,6 +33,7 @@ import           Data.CQRS.Types.EventStore (EventStore(..))
 import           Data.CQRS.Types.PersistedEvent (PersistedEvent(..))
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.SnapshotStore
+import           Data.CQRS.Types.StorageBackend (StorageBackend(..))
 import           Data.Foldable (forM_)
 import           Data.Maybe (fromJust)
 import qualified UnliftIO.Streams.Combinators as SC
@@ -51,7 +52,11 @@ instance MonadUnliftIO m => MonadUnliftIO (CommandT i a e m) where
   withRunInIO = wrappedWithRunInIO CommandT unCommandT
 
 -- | Environment for CommandT.
-newtype CommandE i a e = CommandE { commandRepository :: Repository i a e }
+data CommandE i a e = CommandE
+  { commandRepository :: Repository i a e
+  , commandEventStore :: EventStore i e
+  , commandSnapshotStore :: SnapshotStore i a
+  }
 
 -- | Unit of work monad transformer.
 newtype UnitOfWorkT a e m b = UnitOfWorkT { unUnitOfWorkT :: UStateT (UnitOfWorkE a e) m b }
@@ -74,7 +79,12 @@ data UnitOfWorkE a e =
 
 -- | Run a command against a repository.
 runCommandT :: Repository i a e -> CommandT i a e m b -> m b
-runCommandT repository (CommandT command) = runReaderT command $ CommandE repository
+runCommandT repository (CommandT command) = runReaderT command env
+  where
+    storageBackend = repositoryStorageBackend repository
+    eventStore = sbEventStore storageBackend
+    snapshotStore = sbSnapshotStore storageBackend
+    env = CommandE repository eventStore snapshotStore
 
 -- | Run a command against a repository, ignoring the result.
 execCommandT :: (MonadUnliftIO m) => Repository i a e -> CommandT i a e m b -> m ()
@@ -84,8 +94,8 @@ execCommandT repository = void . runCommandT repository
 writeChanges :: (MonadUnliftIO m) => i -> Aggregate a e -> CommandT i a e m ()
 writeChanges aggregateId aggregate = CommandT $ do
   repository <- fmap commandRepository ask
-  let snapshotStore = repositorySnapshotStore repository
-  let eventStore = repositoryEventStore repository
+  snapshotStore <- fmap commandSnapshotStore ask
+  eventStore <- fmap commandEventStore ask
   let publishEvents = repositoryPublishEvents repository
   -- Convert all the accumulated events to a chunk
   let maybeChunk = C.fromList aggregateId $ map (\(v, (e, ts)) -> PersistedEvent e v ts) (A.versionedEvents aggregate)
@@ -180,8 +190,8 @@ readAggregate = CommandT . fmap A.aggregateValue . getByIdFromEventStore
 getByIdFromEventStore :: (MonadUnliftIO m) => i -> ReaderT (CommandE i a e) m (Aggregate a e)
 getByIdFromEventStore aggregateId = do
   r <- fmap commandRepository ask
-  let es = repositoryEventStore r
-  let ss = repositorySnapshotStore r
+  es <- fmap commandEventStore ask
+  ss <- fmap commandSnapshotStore ask
   let aa = repositoryAggregateAction r
   a' <- (A.applySnapshot $ A.emptyAggregate aa) <$> ssReadSnapshot ss aggregateId
   lift $ esRetrieveEvents es aggregateId (A.aggregateVersion0 a') (SC.fold A.applyEvent a')

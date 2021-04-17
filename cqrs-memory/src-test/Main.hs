@@ -1,17 +1,13 @@
 module Main (main) where
 
-import Test.Hspec ( hspec )
-import Data.CQRS.Memory ( newEventStore
-                        , newEventStream
-                        , newStorage
-                        , newSnapshotStore
-                        )
-import Data.CQRS.Test.TestKit ( mkEventStoreSpec
-                              , mkEventStreamSpec
-                              , mkRepositorySpec
-                              , mkSnapshotStoreSpec
-                              , TestKitSettings(..)
-                              )
+import           Data.CQRS.Memory
+import           Data.CQRS.Test.TestKit ( mkEventStoreSpec
+                                        , mkEventStreamSpec
+                                        , mkRepositorySpec
+                                        , mkSnapshotStoreSpec
+                                        , TestKitSettings(..)
+                                        )
+import           Test.Hspec ( hspec )
 
 -- Run all the test suites.
 main :: IO ()

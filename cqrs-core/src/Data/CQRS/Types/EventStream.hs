@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.Types.EventStream
        ( EventStream(..)
+       , mkEmpty
        , transform
        , transformI
        , transformE
@@ -16,7 +17,7 @@ import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StreamPosition
 import           Data.Int (Int32)
-import           UnliftIO.Streams (InputStream)
+import           UnliftIO.Streams (InputStream, nullInput)
 import qualified UnliftIO.Streams.Combinators as SC
 
 -- | EventStream for events of type 'e' identified by aggregate IDs of type 'i'.
@@ -70,3 +71,13 @@ transformE (_, ge) (EventStream readEventStream' readAggregateEvents') =
     readAggregateEvents :: forall a m' . (MonadUnliftIO m') => i -> Int32 -> (InputStream (PersistedEvent e') -> m' a) -> m' a
     readAggregateEvents aggregateId v0 p' =
       readAggregateEvents' aggregateId v0 $ SC.map (fmap ge) >=> p'
+
+-- | Create an empty event stream.
+mkEmpty :: MonadUnliftIO m => m (EventStream i e)
+mkEmpty = do
+  i0 <- nullInput
+  i1 <- nullInput
+  pure $ EventStream
+    { esReadEventStream = \_ f -> f i0
+    , esReadAggregateEvents = \_ _ f -> f i1
+    }

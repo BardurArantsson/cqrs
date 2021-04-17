@@ -36,10 +36,7 @@ main = do
                              return kvs
                      }
      mkRepositorySpec $ testKitSettings {
-                            tksMakeContext = \c -> do
-                              es <- newEventStore c
-                              ss <- newSnapshotStore
-                              return (es, ss)
+                          tksMakeContext = newStorageBackend
                         }
      mkSnapshotStoreSpec $ testKitSettings {
                                tksMakeContext = const newSnapshotStore

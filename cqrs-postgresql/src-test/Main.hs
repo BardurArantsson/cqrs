@@ -8,6 +8,7 @@ import           Data.CQRS.PostgreSQL ( Schema(..)
                                       , newEventStream
                                       , newKVStore
                                       , newSnapshotStore
+                                      , newStorageBackend
                                       )
 import           Data.CQRS.PostgreSQL.Migrations
 import           Data.CQRS.PostgreSQL.Internal.QuerySpec ( mkQuerySpec )
@@ -70,7 +71,5 @@ main = do
                        }
        mkRepositorySpec $ testKitSettings {
                               tksMakeContext = \c -> do
-                                es <- newEventStore c schema
-                                ss <- newSnapshotStore c schema
-                                return (es, ss)
+                                newStorageBackend c schema
                           }

@@ -3,6 +3,7 @@ module Data.CQRS.Memory.Internal.StorageBackend
   ) where
 
 import qualified Data.CQRS.Memory.Internal.EventStore as ES
+import qualified Data.CQRS.Memory.Internal.EventStream as EST
 import           Data.CQRS.Memory.Internal.Storage (Storage)
 import qualified Data.CQRS.Memory.Internal.SnapshotStore as SS
 import           Data.CQRS.Types.StorageBackend (StorageBackend)
@@ -13,4 +14,5 @@ newStorageBackend :: (Show i, Ord i, Typeable i) => Storage i e -> IO (StorageBa
 newStorageBackend storage = do
   eventStore <- ES.newEventStore storage
   snapshotStore <- SS.newSnapshotStore
-  pure $ SB.newStorageBackend eventStore snapshotStore
+  eventStream <- EST.newEventStream storage
+  pure $ SB.newStorageBackend eventStore snapshotStore eventStream

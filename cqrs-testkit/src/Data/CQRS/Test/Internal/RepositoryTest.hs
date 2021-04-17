@@ -19,7 +19,7 @@ import qualified Data.CQRS.Types.Chunk as Chunk
 import           Data.CQRS.Types.Clock
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.EventStore (EventStore)
-import           Data.CQRS.Types.StorageBackend (newStorageBackend)
+import           Data.CQRS.Types.StorageBackend (newStorageBackend, StorageBackend, disableSnapshots)
 import           Data.CQRS.Types.SnapshotStore (nullSnapshotStore, SnapshotStore)
 import           Data.CQRS.Test.Internal.AggregateAction (byteStringAggregateAction)
 import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
@@ -58,7 +58,7 @@ runCommandT command = do
   liftIO $ C.runCommandT repository command
 
 -- Create a new test scope runner from the test kit settings.
-mkRunScope' :: Int -> TestKitSettings s (EventStore ByteString ByteString, SnapshotStore ByteString ByteString) -> (ScopeM (Scope ByteString ByteString ByteString) r -> IO r)
+mkRunScope' :: Int -> TestKitSettings s (StorageBackend ByteString ByteString ByteString) -> (ScopeM (Scope ByteString ByteString ByteString) r -> IO r)
 mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a -> do
   -- We collect all events published by the repository for verification
   publishedEventsRef <- newIORef []
@@ -68,18 +68,17 @@ mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a 
           where (i, events') = Chunk.toList chunk
   -- Repository setup
   clock <- autoIncrementingClock 100 3
-  (eventStore, snapshotStore) <- tksMakeContext testKitSettings a
+  storageBackend <- tksMakeContext testKitSettings a
   let settings =
         setSnapshotFrequency snapshotFrequency $
         setClock clock defaultSettings
-  let storageBackend = newStorageBackend eventStore snapshotStore
   let repository = newRepository settings byteStringAggregateAction storageBackend publish
   -- Build the ambient state.
   return $ Scope repository publishedEventsRef
 
 -- Given test kit settings, create the full spec for testing the
 -- repository implementation against those settings.
-mkRepositorySpec :: TestKitSettings a (EventStore ByteString ByteString, SnapshotStore ByteString ByteString) -> Spec
+mkRepositorySpec :: TestKitSettings a (StorageBackend ByteString ByteString ByteString) -> Spec
 mkRepositorySpec testKitSettings =
   -- We do each set of tests both *with* and *without* a snapshot
   -- store and with varying snapshot frequency. This should hopefully
@@ -90,12 +89,11 @@ mkRepositorySpec testKitSettings =
     let s1 = "(snapshots; " ++ fs ++ ")"
     let s2 = "(null snapshots; " ++ fs ++ ")"
     mkSpec s1 (mkRunScope' f testKitSettings)
-    mkSpec s2 (mkRunScope' f $ disableSnapshots testKitSettings)
+    mkSpec s2 (mkRunScope' f $ noSnapshots testKitSettings)
   where
-    disableSnapshots settings =
+    noSnapshots settings =
         settings { tksMakeContext = \a -> do
-                        (eventStore, _) <- tksMakeContext settings a
-                        return (eventStore, nullSnapshotStore)
+                    fmap Data.CQRS.Types.StorageBackend.disableSnapshots $ tksMakeContext settings a
                  }
 
 mkSpec :: String -> (ScopeM (Scope ByteString ByteString ByteString) () -> IO ()) -> Spec

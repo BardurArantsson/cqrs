@@ -4,6 +4,7 @@ module Data.CQRS.PostgreSQL.Internal.StorageBackend
 
 import           Data.ByteString (ByteString)
 import qualified Data.CQRS.PostgreSQL.Internal.EventStore as ES
+import qualified Data.CQRS.PostgreSQL.Internal.EventStream as EST
 import qualified Data.CQRS.PostgreSQL.Internal.SnapshotStore as SS
 import           Data.CQRS.Types.StorageBackend (StorageBackend)
 import qualified Data.CQRS.Types.StorageBackend as SB
@@ -15,4 +16,5 @@ newStorageBackend :: Pool Connection -> Schema -> IO (StorageBackend ByteString 
 newStorageBackend pool schema = do
   eventStore <- ES.newEventStore pool schema
   snapshotStore <- SS.newSnapshotStore pool schema
-  pure $ SB.newStorageBackend eventStore snapshotStore
+  eventStream <- EST.newEventStream pool schema
+  pure $ SB.newStorageBackend eventStore snapshotStore eventStream

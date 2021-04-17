@@ -5,7 +5,7 @@ module Data.CQRS.Test.Internal.EventStreamTest
     ( mkEventStreamSpec
     ) where
 
-import           Control.Monad (forM_, replicateM)
+import           Control.Monad ((>=>), forM_, replicateM)
 import           Control.Monad.IO.Class (liftIO)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.PersistedEvent
@@ -66,7 +66,7 @@ readEventStream' startPosition f = do
 readEventStream :: StreamPosition -> ScopeM (Scope i e) [(i, PersistedEvent e)]
 readEventStream startPosition = do
   eventStream <- fmap scopeEventStream ask
-  liftIO $ esReadEventStream eventStream startPosition (\is -> SC.map dropStreamPosition is >>= SL.toList)
+  liftIO $ esReadEventStream eventStream startPosition (SC.map dropStreamPosition >=> SL.toList)
   where
     dropStreamPosition (_, e) = (pepAggregateId e, shrink e)
 

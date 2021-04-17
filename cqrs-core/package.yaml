@@ -42,6 +42,7 @@ library:
     - Data.CQRS.Types.PersistedEvent
     - Data.CQRS.Types.Snapshot
     - Data.CQRS.Types.SnapshotStore
+    - Data.CQRS.Types.StorageBackend
     - Data.CQRS.Types.StoreError
     - Data.CQRS.Types.StreamPosition
   source-dirs: src

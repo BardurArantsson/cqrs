@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.CQRS.PostgreSQL.Internal.EventStore
        ( newEventStore
+       -- Internal:
+       , retrieveEvents
        ) where
 
 import           Control.Monad (forM_)

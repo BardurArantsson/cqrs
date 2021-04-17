@@ -9,8 +9,9 @@ import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.StreamPosition
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.EventStream
-import           Data.CQRS.PostgreSQL.Internal.Query
+import           Data.CQRS.PostgreSQL.Internal.EventStore (retrieveEvents)
 import           Data.CQRS.PostgreSQL.Internal.Identifiers
+import           Data.CQRS.PostgreSQL.Internal.Query
 import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Database.Peregrin.Metadata
 import           Database.PostgreSQL.Simple (Connection)
@@ -40,6 +41,7 @@ newEventStream :: Pool Connection -> Schema -> IO (EventStream ByteString ByteSt
 newEventStream connectionPool schema =
   return EventStream
     { esReadEventStream = readEventStream connectionPool identifiers
+    , esReadAggregateEvents = retrieveEvents connectionPool identifiers
     }
   where
     identifiers = mkIdentifiers schema

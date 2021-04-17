@@ -1,5 +1,8 @@
 module Data.CQRS.Memory.Internal.EventStore
     ( newEventStore
+    -- Internal:
+    , retrieveEvents
+    , Storage
     ) where
 
 import           Control.Monad (when, forM_)

@@ -9,6 +9,7 @@ import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
 import           Data.CQRS.Types.EventStream
 import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Internal.StreamPosition
+import           Data.CQRS.Memory.Internal.EventStore (retrieveEvents)
 import           Data.CQRS.Memory.Internal.Storage
 import qualified Data.Foldable as F
 import           UnliftIO.IORef (readIORef)
@@ -29,8 +30,9 @@ readEventStream (Storage store) (StreamPosition sp0) f = do
     reformat :: Event i e -> (StreamPosition, PersistedEvent' i e)
     reformat (Event i e p) = (StreamPosition p, grow i e)
 
-newEventStream :: Storage i e -> IO (EventStream i e)
+newEventStream :: (Eq i) => Storage i e -> IO (EventStream i e)
 newEventStream storage =
   return EventStream
     { esReadEventStream = readEventStream storage
+    , esReadAggregateEvents = retrieveEvents storage
     }

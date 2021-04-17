@@ -8,7 +8,7 @@ Author:              Bardur Arantsson
 Maintainer:          spam@scientician.net
 Category:            Web
 Build-type:          Simple
-Cabal-version:       >=1.10
+Cabal-version:       >=1.24
 Extra-source-files:
     static/bower_components/bootstrap/dist/css/bootstrap.min.css
     static/bower_components/superagent/superagent.js

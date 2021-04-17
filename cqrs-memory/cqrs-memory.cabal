@@ -5,7 +5,7 @@ Description:         Memory backend for the cqrs package.
 License:             MIT
 License-file:        LICENSE
 Category:            Data
-Cabal-version:       >=1.10
+Cabal-version:       >=1.24
 Build-type:          Simple
 Author:              Bardur Arantsson
 Maintainer:          Bardur Arantsson <bardur@scientician.net>

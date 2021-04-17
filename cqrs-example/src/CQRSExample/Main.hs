@@ -12,15 +12,15 @@ import           Control.Monad.IO.Class (MonadIO(..))
 import           Control.Monad.IO.Unlift (MonadUnliftIO)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.PersistedEvent (PersistedEvent'(..), shrink)
-import qualified Data.CQRS.Memory as M (newEventStream, newStorage, newStorageBackend)
-import qualified Data.CQRS.PostgreSQL as P (newEventStream, newStorageBackend, Schema(..))
+import qualified Data.CQRS.Memory as M (newStorage, newStorageBackend)
+import qualified Data.CQRS.PostgreSQL as P (newStorageBackend, Schema(..))
 import           Data.CQRS.PostgreSQL.Migrations (migrate)
 import qualified Data.CQRS.Repository as R
 import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as Chunk
 import           Data.CQRS.Types.EventStream (EventStream(..))
-import qualified Data.CQRS.Types.EventStream as EventStream
 import           Data.CQRS.Types.Iso (Iso)
+import           Data.CQRS.Types.StorageBackend (StorageBackend(..))
 import qualified Data.CQRS.Types.StorageBackend as SB
 import           Data.CQRS.Types.StreamPosition (StreamPosition, infimum)
 import           Data.Either (fromRight)
@@ -116,7 +116,7 @@ startServing backend = do
   let publishEvents = atomically . C.writeTChan publishedEvents
 
   -- Create backend
-  (storageBackend, eventStream) <-
+  storageBackend <-
     case backend of
       PostgreSQL -> do
         -- Use a pg-harness instance.
@@ -131,14 +131,10 @@ startServing backend = do
         -- Create the event stream and event store
         let schema = P.DefaultSchema
         withResource connectionPool $ flip migrate $ schema
-        eventStream <- fmap (EventStream.transform identifierIso eventIso) (P.newEventStream connectionPool schema)
-        storageBackend <- fmap (SB.transformI identifierIso .  SB.transformE eventIso) $ P.newStorageBackend connectionPool schema
-        return (storageBackend, eventStream)
+        fmap (SB.transformI identifierIso .  SB.transformE eventIso) $ P.newStorageBackend connectionPool schema
       Memory -> do
         storage <- M.newStorage
-        eventStream <- M.newEventStream storage
-        storageBackend <- M.newStorageBackend storage
-        return (storageBackend, eventStream)
+        M.newStorageBackend storage
 
   -- We do not care about snapshots
   let storageBackend' = SB.disableSnapshots storageBackend
@@ -149,7 +145,7 @@ startServing backend = do
 
   -- Start sourcing events.
   void $ forkIO $
-    eventSourcingThread qState eventStream serverEvents publishedEvents
+    eventSourcingThread qState (sbEventStream storageBackend') serverEvents publishedEvents
 
   -- Web serving thread.
   void $ forkIO $

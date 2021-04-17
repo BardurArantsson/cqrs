@@ -11,6 +11,10 @@ category:            Data
 
 dependencies:
   - *dep_base
-
+  - *dep_cqrs-core
+  - *dep_unliftio-core
+  - *dep_unliftio-streams
 library:
+  exposed-modules:
+    - Data.CQRS.View.Types.EventSource
   source-dirs: src

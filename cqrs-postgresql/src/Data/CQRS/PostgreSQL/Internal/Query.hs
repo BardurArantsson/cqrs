@@ -84,6 +84,7 @@ declareCursor q parameters = do
   connection <- ask
   liftIO $ PS.formatQuery connection q parameters >>= PSC.declareCursor connection . Query
 
+-- | Close cursor.
 closeCursor :: MonadUnliftIO m => Cursor -> ReaderT Connection m ()
 closeCursor cursor = liftIO $ PSC.closeCursor cursor
 
@@ -91,31 +92,20 @@ closeCursor cursor = liftIO $ PSC.closeCursor cursor
 data BufferState a = Done [a]
                    | Rows [a]
 
--- | Run a query and fold over the results. The action receives an
--- 'InputStream' over all the rows in the result. The input stream is
--- only valid for that scope.
-query :: forall p r m a . (ToRow p, FromRow r, MonadUnliftIO m) => Query -> p -> (InputStream r -> QueryT m a) -> QueryT m a
-query q parameters f = QueryT $ do
-  -- Feeding function
-  let feed :: Cursor -> ReaderT Connection m a
-      feed cursor = do
-        -- Start with an empty buffer.
-        bufferRef <- newIORef $ Rows []
-        -- Create the stream
-        let !inputStream = InputStream
-              (read' cursor bufferRef)
-              (unread bufferRef)
-        -- Give input stream to 'f'
-        unQueryT $ f inputStream
-
-  -- Run inside a bracket to ensure cursor release.
-  bracket
-    (declareCursor q parameters)
-    closeCursor
-    feed
+-- | Stream a cursor to the given function. Does __not__ close the cursor.
+streamCursor :: forall r m a . (FromRow r, MonadUnliftIO m) => Cursor -> (InputStream r -> QueryT m a) -> QueryT m a
+streamCursor cursor f = QueryT $ do
+    -- Start with an empty buffer.
+    bufferRef <- newIORef $ Rows []
+    -- Create the stream
+    let !inputStream = InputStream
+          (read' bufferRef)
+          (unread bufferRef)
+    -- Give input stream to 'f'
+    unQueryT $ f inputStream
 
   where
-    read' cursor bufferRef =
+    read' bufferRef =
       readIORef bufferRef >>= \case
         Done [] ->
           return Nothing
@@ -123,7 +113,7 @@ query q parameters f = QueryT $ do
           writeIORef bufferRef $! Done rs
           return $ Just r
         Rows [] ->
-          fetch cursor >>= \case
+          fetch >>= \case
             [] -> do
               writeIORef bufferRef $! Done []
               return Nothing
@@ -139,8 +129,18 @@ query q parameters f = QueryT $ do
           Done rs -> Rows (r:rs)
           Rows rs -> Rows (r:rs)
 
-    fetch cursor =
+    fetch =
       reverse . either id id <$>
         PSC.foldForward cursor fetchSize (\rs r -> return (r:rs)) []
 
     fetchSize = 256
+
+-- | Run a query and fold over the results. The action receives an
+-- 'InputStream' over all the rows in the result. The input stream is
+-- only valid for that scope.
+query :: forall p r m a . (ToRow p, FromRow r, MonadUnliftIO m) => Query -> p -> (InputStream r -> QueryT m a) -> QueryT m a
+query q parameters f = QueryT $ do
+  bracket
+    (declareCursor q parameters)
+    closeCursor
+    (\c -> unQueryT $ streamCursor c f)

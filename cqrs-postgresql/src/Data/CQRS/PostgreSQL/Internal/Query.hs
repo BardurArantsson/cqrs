@@ -79,10 +79,10 @@ unsafeExecute :: (MonadUnliftIO m, ToRow p) => Connection -> Query -> p -> m Int
 unsafeExecute c q p = liftIO $ PS.execute c q p
 
 -- | Declare a cursor.
-declareCursor :: (MonadUnliftIO m, ToRow p) => Query -> p -> ReaderT Connection m Cursor
-declareCursor q parameters = do
+declareCursor :: (MonadUnliftIO m) => Query -> ReaderT Connection m Cursor
+declareCursor q = do
   connection <- ask
-  liftIO $ PS.formatQuery connection q parameters >>= PSC.declareCursor connection . Query
+  liftIO $ PSC.declareCursor connection q
 
 -- | Close cursor.
 closeCursor :: MonadUnliftIO m => Cursor -> ReaderT Connection m ()
@@ -140,7 +140,9 @@ streamCursor cursor f = QueryT $ do
 -- only valid for that scope.
 query :: forall p r m a . (ToRow p, FromRow r, MonadUnliftIO m) => Query -> p -> (InputStream r -> QueryT m a) -> QueryT m a
 query q parameters f = QueryT $ do
+  connection <- ask
+  q' <- liftIO $ Query <$> PS.formatQuery connection q parameters
   bracket
-    (declareCursor q parameters)
+    (declareCursor q')
     closeCursor
     (\c -> unQueryT $ streamCursor c f)

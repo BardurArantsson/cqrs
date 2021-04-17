@@ -24,4 +24,4 @@ Library
                        UnliftIO.Streams.List
   Build-Depends:       base >= 4.10 && < 5
                      , io-streams >= 1.5.0.1 && < 2
-                     , unliftio-core >= 0.1.1.0 && < 0.2
+                     , unliftio-core >= 0.1.2.0 && < 0.2

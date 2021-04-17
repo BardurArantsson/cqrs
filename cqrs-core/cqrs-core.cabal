@@ -22,7 +22,7 @@ Library
                      , deepseq >= 1.4 && < 2
                      , time >= 1.8 && < 1.9
                      , transformers >= 0.5.2 && < 0.6
-                     , unliftio-core >= 0.1.1.0 && < 0.2
+                     , unliftio-core >= 0.1.2.0 && < 0.2
                      , unliftio-streams >= 0.1 && < 0.2
   Default-language:    Haskell2010
   ghc-options:         -Wall

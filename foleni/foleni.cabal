@@ -22,4 +22,4 @@ Library
                        Data.Foleni.Internal
   Build-Depends:       base >= 4.10 && < 5
                      , stm >= 2.4 && < 3
-                     , unliftio-core >= 0.1.1.0 && < 0.2
+                     , unliftio-core >= 0.1.2.0 && < 0.2

@@ -4,4 +4,5 @@ packages:
   cqrs-memory/
   cqrs-postgresql/
   cqrs-testkit/
+  cqrs-view/
   foleni/

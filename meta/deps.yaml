@@ -39,3 +39,5 @@ _self-deps:
   - &dep_cqrs-memory                   cqrs-memory >= 0.11.0 && < 0.12.0
   - &dep_cqrs-postgresql               cqrs-postgresql >= 0.11.0 && < 0.12.0
   - &dep_cqrs-testkit                  cqrs-testkit >= 0.11.0 && < 0.12.0
+  - &dep_cqrs-view                     cqrs-view >= 0.11.0 && < 0.12.0
+  - &dep_foleni                        foleni >= 0.1 && < 0.2

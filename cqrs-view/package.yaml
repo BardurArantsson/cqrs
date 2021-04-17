@@ -1,0 +1,16 @@
+_meta_deps: !include "../meta/deps.yaml"
+_meta_defs: !include "../meta/defaults.yaml"
+
+<<: *defaults
+
+name:                cqrs-view
+version:             0.11.0
+synopsis:            View support for the cqrs-* package ecosystem.
+description:         View support for the cqrs-* package ecosystem.
+category:            Data
+
+dependencies:
+  - *dep_base
+
+library:
+  source-dirs: src

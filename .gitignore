@@ -1,5 +1,6 @@
 *~
 .cabal-sandbox
+*.cabal
 dist/
 dist-newstyle/
 cabal.sandbox.config

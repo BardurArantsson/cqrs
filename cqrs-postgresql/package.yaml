@@ -1,0 +1,51 @@
+_meta_deps: !include "../meta/deps.yaml"
+_meta_defs: !include "../meta/defaults.yaml"
+
+<<: *defaults
+
+name: cqrs-postgresql
+version: "0.11.0"
+synopsis: PostgreSQL backend for the cqrs package.
+description: PostgreSQL backend for the cqrs package.
+category: Data
+
+dependencies:
+  - *dep_aeson
+  - *dep_base
+  - *dep_bytestring
+  - *dep_cqrs-core
+  - *dep_peregrin
+  - *dep_postgresql-simple
+  - *dep_transformers
+  - *dep_unliftio
+  - *dep_unliftio-core
+  - *dep_unliftio-streams
+  - *dep_unliftio-pool
+
+library:
+  exposed-modules:
+    - Data.CQRS.PostgreSQL
+    - Data.CQRS.PostgreSQL.Internal.EventStore
+    - Data.CQRS.PostgreSQL.Internal.EventStream
+    - Data.CQRS.PostgreSQL.Internal.Identifiers
+    - Data.CQRS.PostgreSQL.Internal.KVStore
+    - Data.CQRS.PostgreSQL.Internal.Query
+    - Data.CQRS.PostgreSQL.Internal.SnapshotStore
+    - Data.CQRS.PostgreSQL.Internal.Transaction
+    - Data.CQRS.PostgreSQL.Migrations
+  source-dirs: src
+
+tests:
+  test:
+    source-dirs: src-test
+    main: Main.hs
+    dependencies:
+      - *dep_pg-harness-client
+      - *dep_random
+      - *dep_resource-pool
+      - *dep_cqrs-core
+      - *dep_cqrs-testkit
+      - *dep_cqrs-postgresql
+      - *dep_hspec
+    other-modules:
+      - Data.CQRS.PostgreSQL.Internal.QuerySpec

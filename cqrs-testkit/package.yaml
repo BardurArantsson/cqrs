@@ -1,0 +1,39 @@
+_meta_deps: !include "../meta/deps.yaml"
+_meta_defs: !include "../meta/defaults.yaml"
+
+<<: *defaults
+
+name: cqrs-testkit
+version: "0.11.0"
+synopsis: Command-Query Responsibility Segregation Test Support
+description: Test Support for CQRS integration components.
+category: Data
+
+library:
+  dependencies:
+    - *dep_HUnit
+    - *dep_aeson
+    - *dep_base
+    - *dep_base64-bytestring
+    - *dep_bytestring
+    - *dep_containers
+    - *dep_cqrs-core
+    - *dep_deepseq
+    - *dep_hspec
+    - *dep_lifted-base
+    - *dep_random
+    - *dep_transformers
+    - *dep_unliftio-streams
+  source-dirs:
+    - src
+  exposed-modules:
+    - Data.CQRS.Test.TestKit
+    - Data.CQRS.Test.Internal.AggregateAction
+    - Data.CQRS.Test.Internal.EventStreamTest
+    - Data.CQRS.Test.Internal.EventStoreTest
+    - Data.CQRS.Test.Internal.KVStoreTest
+    - Data.CQRS.Test.Internal.RepositoryTest
+    - Data.CQRS.Test.Internal.Scope
+    - Data.CQRS.Test.Internal.SnapshotTest
+    - Data.CQRS.Test.Internal.TestKitSettings
+    - Data.CQRS.Test.Internal.Utils

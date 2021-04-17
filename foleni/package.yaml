@@ -1,0 +1,21 @@
+_meta_deps: !include "../meta/deps.yaml"
+_meta_defs: !include "../meta/defaults.yaml"
+
+<<: *defaults
+
+name: foleni
+version: "0.1.0.0"
+synopsis: Concurrent queue bounded by element cost function
+description: Concurrent queue bounded by element cost function
+category: Data
+
+dependencies:
+  - *dep_base
+  - *dep_stm
+  - *dep_unliftio-core
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Data.Foleni
+    - Data.Foleni.Internal

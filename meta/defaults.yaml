@@ -1,0 +1,8 @@
+---
+_defaults: &defaults
+  github: BardurArantsson/cqrs
+  author: Bardur Arantsson
+  maintainer: Bardur Arantsson <bardur@scientician.net>
+  license: "MIT"
+  license-file: "LICENSE"
+  ghc-options: -Wall

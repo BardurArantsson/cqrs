@@ -1,0 +1,60 @@
+_meta_deps: !include "../meta/deps.yaml"
+_meta_defs: !include "../meta/defaults.yaml"
+
+<<: *defaults
+
+name: cqrs-core
+version: "0.11.0"
+synopsis: Command-Query Responsibility Segregation
+description: Haskell implementation of the CQRS architectural pattern.
+category: Data
+
+dependencies:
+  - *dep_base
+  - *dep_bytestring
+  - *dep_bytestring-lexing
+  - *dep_containers
+  - *dep_deepseq
+  - *dep_time
+  - *dep_transformers
+  - *dep_unliftio-core
+  - *dep_unliftio-streams
+
+library:
+  exposed-modules:
+    - Data.CQRS.Command
+    - Data.CQRS.KVStore
+    - Data.CQRS.Repository
+    - Data.CQRS.SnapshotStore
+    - Data.CQRS.Internal.Aggregate
+    - Data.CQRS.Internal.PersistedEvent
+    - Data.CQRS.Internal.Repository
+    - Data.CQRS.Internal.StreamPosition
+    - Data.CQRS.Internal.UState
+    - Data.CQRS.Types.AggregateAction
+    - Data.CQRS.Types.Chunk
+    - Data.CQRS.Types.Clock
+    - Data.CQRS.Types.EventStore
+    - Data.CQRS.Types.EventStream
+    - Data.CQRS.Types.Iso
+    - Data.CQRS.Types.KVStore
+    - Data.CQRS.Types.KVStoreError
+    - Data.CQRS.Types.PersistedEvent
+    - Data.CQRS.Types.Snapshot
+    - Data.CQRS.Types.SnapshotStore
+    - Data.CQRS.Types.StoreError
+    - Data.CQRS.Types.StreamPosition
+  source-dirs: src
+
+tests:
+  test:
+    source-dirs: src-test
+    main: Main.hs
+    dependencies:
+      - *dep_cqrs-core
+      - *dep_genvalidity
+      - *dep_genvalidity-hspec
+      - *dep_hspec
+      - *dep_validity
+    other-modules:
+      - Data.CQRS.Types.StreamPositionTest

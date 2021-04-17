@@ -1,0 +1,40 @@
+_meta_deps: !include "../meta/deps.yaml"
+_meta_defs: !include "../meta/defaults.yaml"
+
+<<: *defaults
+
+name: cqrs-memory
+version: "0.11.0"
+synopsis: Memory backend for the cqrs package.
+description: Memory backend for the cqrs package.
+category: Data
+
+dependencies:
+  - *dep_base
+  - *dep_bytestring
+  - *dep_containers
+  - *dep_cqrs-core
+  - *dep_stm
+  - *dep_unliftio
+  - *dep_unliftio-core
+  - *dep_unliftio-streams
+
+library:
+  exposed-modules:     
+    - Data.CQRS.Memory.Internal.EventStore
+    - Data.CQRS.Memory.Internal.EventStream
+    - Data.CQRS.Memory.Internal.KVStore
+    - Data.CQRS.Memory.Internal.SnapshotStore
+    - Data.CQRS.Memory.Internal.Storage
+    - Data.CQRS.Memory
+  source-dirs: src
+
+tests:
+  test:
+    source-dirs: src-test
+    main: Main.hs
+    dependencies: 
+      - *dep_cqrs-memory
+      - *dep_cqrs-core
+      - *dep_cqrs-testkit
+      - *dep_hspec

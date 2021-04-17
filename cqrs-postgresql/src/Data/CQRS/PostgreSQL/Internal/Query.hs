@@ -24,11 +24,11 @@ import           Database.PostgreSQL.Simple.Types (Query(..))
 import qualified Database.PostgreSQL.Simple as PS
 import           Database.PostgreSQL.Simple.Cursor (Cursor)
 import qualified Database.PostgreSQL.Simple.Cursor as PSC
-import qualified System.IO.Streams as Streams
-import           System.IO.Streams.Internal (InputStream(..))
-import qualified System.IO.Streams.List as SL
 import           UnliftIO (MonadIO(..), MonadUnliftIO(..), UnliftIO(..), liftIO, bracket, withUnliftIO)
 import           UnliftIO.IORef (newIORef, readIORef, modifyIORef', writeIORef)
+import qualified UnliftIO.Streams as Streams
+import           UnliftIO.Streams.Internal (InputStream(..))
+import qualified UnliftIO.Streams.List as SL
 
 -- | Query monad transformer.
 newtype QueryT m a = QueryT { unQueryT :: ReaderT Connection m a }
@@ -59,20 +59,20 @@ execute q parameters = void $ execute' q parameters
 execute' :: (MonadUnliftIO m, ToRow p) => Query -> p -> QueryT m Int64
 execute' q parameters = QueryT $ do
   connection <- ask
-  liftIO $ unsafeExecute connection q parameters
+  unsafeExecute connection q parameters
 
 -- | Run a quest which is expected to return at most one result. Any
 -- result rows past the first will be __ignored__.
 query1 :: (MonadUnliftIO m, ToRow p, FromRow r) => Query -> p -> QueryT m (Maybe r)
 query1 q parameters =
-  query q parameters (liftIO . Streams.read)
+  query q parameters Streams.read
 
 -- | Run a query and return a list of the rows in the result. __This will read
 -- ALL rows in the result into memory. It is ONLY meant for testing unless
 -- you're ABSOLUTELY SURE that you won't end up using too much memory!__
 queryAll :: (MonadUnliftIO m, ToRow p, FromRow r) => Query -> p -> QueryT m [r]
 queryAll q parameters =
-  query q parameters (liftIO . SL.toList)
+  query q parameters SL.toList
 
 -- | Execute query, returning the number of updated rows.
 unsafeExecute :: (MonadUnliftIO m, ToRow p) => Connection -> Query -> p -> m Int64

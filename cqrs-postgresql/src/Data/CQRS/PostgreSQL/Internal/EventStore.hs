@@ -4,7 +4,8 @@ module Data.CQRS.PostgreSQL.Internal.EventStore
        ) where
 
 import           Control.Monad (forM_)
-import           Control.Monad.IO.Unlift (MonadUnliftIO(..), liftIO)
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
+import           Control.Monad.Trans.Class (lift)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Types.Chunk (Chunk)
@@ -16,10 +17,10 @@ import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Data.Int (Int32)
 import           Database.Peregrin.Metadata (Schema)
 import           Database.PostgreSQL.Simple (Connection, SqlError(..), Only(..), Binary(..))
-import           System.IO.Streams (InputStream)
-import qualified System.IO.Streams.Combinators as SC
 import           UnliftIO.Exception (throwIO, catchJust)
 import           UnliftIO.Pool (Pool)
+import           UnliftIO.Streams (InputStream)
+import qualified UnliftIO.Streams.Combinators as SC
 
 -- | Is the given 'SqlError' a duplicate key exception? This
 -- function is meant for use with 'catchJust'.
@@ -74,10 +75,9 @@ storeEvents cp identifiers chunk =
 
 retrieveEvents :: (MonadUnliftIO m) => Pool Connection -> Identifiers -> ByteString -> Int32 -> (InputStream (PersistedEvent ByteString) -> m a) -> m a
 retrieveEvents cp identifiers aggregateId v0 f =
-  withRunInIO $ \io ->
-    runTransactionP cp $
-      query sqlSelectEvent (eventTable, Binary aggregateId, v0) $ \is ->
-        liftIO $ SC.map unpack is >>= (io . f)
+  runTransactionP cp $
+    query sqlSelectEvent (eventTable, Binary aggregateId, v0) $ \is ->
+      lift $ SC.map unpack is >>= f
   where
     unpack (eventData, sequenceNumber, timestampMillis) =
       PersistedEvent eventData sequenceNumber timestampMillis
@@ -93,10 +93,9 @@ retrieveEvents cp identifiers aggregateId v0 f =
 
 retrieveAllEvents :: (MonadUnliftIO m) => Pool Connection -> Identifiers -> (InputStream (PersistedEvent' ByteString ByteString) -> m a) -> m a
 retrieveAllEvents cp identifiers f =
-  withRunInIO $ \io ->
-    runTransactionP cp $
-      query sqlSelectAllEvents (Only eventTable) $ \is ->
-        liftIO $ SC.map unpack is >>= (io . f)
+  runTransactionP cp $
+    query sqlSelectAllEvents (Only eventTable) $ \is ->
+      lift $ SC.map unpack is >>= f
   where
     unpack (aggregateId, sequenceNumber, eventData, timestampMillis) =
         grow aggregateId $ PersistedEvent eventData sequenceNumber timestampMillis

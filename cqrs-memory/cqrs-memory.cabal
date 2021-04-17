@@ -19,10 +19,10 @@ Library
                      , bytestring >= 0.9.0.1
                      , containers >= 0.5
                      , cqrs-core >= 0.11.0 && < 0.12.0
-                     , io-streams >= 1.2 && < 2
                      , stm >= 2.4 && < 3
                      , unliftio >= 0.2.4.0 && < 0.3
                      , unliftio-core >= 0.1.1.0 && < 0.2
+                     , unliftio-streams >= 0.1 && < 0.2
   Default-language:    Haskell2010
   ghc-options:         -Wall
   hs-source-dirs:      src

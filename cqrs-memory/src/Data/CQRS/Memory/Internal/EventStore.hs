@@ -3,7 +3,7 @@ module Data.CQRS.Memory.Internal.EventStore
     ) where
 
 import           Control.Monad (when, forM_)
-import           Control.Monad.IO.Unlift (MonadUnliftIO, liftIO, withRunInIO)
+import           Control.Monad.IO.Unlift (MonadUnliftIO, liftIO)
 import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as C
@@ -17,11 +17,11 @@ import           Data.Ord (comparing)
 import           Data.Sequence (Seq, (><))
 import qualified Data.Sequence as S
 import           Data.Typeable (Typeable)
-import           System.IO.Streams (InputStream)
-import qualified System.IO.Streams.List as SL
-import qualified System.IO.Streams.Combinators as SC
 import           UnliftIO.Exception (throwIO)
 import           UnliftIO.IORef (atomicModifyIORef', readIORef, IORef)
+import           UnliftIO.Streams (InputStream)
+import qualified UnliftIO.Streams.List as SL
+import qualified UnliftIO.Streams.Combinators as SC
 
 storeEvents :: (Show i, Eq i, Typeable i, MonadUnliftIO m) => Storage i e -> Chunk i e -> m ()
 storeEvents (Storage store) chunk = do
@@ -69,8 +69,7 @@ storeEvents (Storage store) chunk = do
 retrieveEvents :: (Eq i, MonadUnliftIO m) => Storage i e -> i -> Int32 -> (InputStream (PersistedEvent e) -> m a) -> m a
 retrieveEvents (Storage store) aggregateId v0 f = do
   events <- F.toList <$> eventsByAggregateId store aggregateId
-  withRunInIO $ \io ->
-    liftIO $ SL.fromList events >>= SC.filter (\e -> peSequenceNumber e > v0) >>= (io . f)
+  SL.fromList events >>= SC.filter (\e -> peSequenceNumber e > v0) >>= f
 
 retrieveAllEvents :: (Ord i, MonadUnliftIO m) => Storage i e -> (InputStream (PersistedEvent' i e) -> m a) -> m a
 retrieveAllEvents (Storage store) f = do
@@ -79,8 +78,7 @@ retrieveAllEvents (Storage store) f = do
   events <- msEvents <$> readIORef store
   let eventList = F.toList events
   inputStream <- liftIO $ SL.fromList $ sortBy (comparing cf) eventList
-  withRunInIO $ \io ->
-    SC.map (\(Event i event _) -> grow i event) inputStream >>= (io . f)
+  SC.map (\(Event i event _) -> grow i event) inputStream >>= f
   where
     cf e = (eAggregateId e, peSequenceNumber $ ePersistedEvent e)
 

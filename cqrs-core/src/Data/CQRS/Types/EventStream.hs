@@ -12,8 +12,8 @@ import           Data.Bifunctor (bimap)
 import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StreamPosition
-import           System.IO.Streams (InputStream)
-import qualified System.IO.Streams.Combinators as SC
+import           UnliftIO.Streams (InputStream)
+import qualified UnliftIO.Streams.Combinators as SC
 
 -- | EventStream for events of type 'e' identified by aggregate IDs of type 'i'.
 newtype EventStream i e = EventStream {
@@ -33,6 +33,4 @@ transform (_, gi) (_, g) (EventStream readEventStream') =
     EventStream readEventStream
   where
     readEventStream :: MonadUnliftIO m' => StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i' e') -> m' a) -> m' a
-    readEventStream p' f =
-      withRunInIO $ \io ->
-        readEventStream' p' $ SC.map (second $ bimap gi g) >=> (io . f)
+    readEventStream p' f = readEventStream' p' $ SC.map (second $ bimap gi g) >=> f

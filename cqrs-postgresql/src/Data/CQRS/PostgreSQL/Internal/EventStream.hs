@@ -3,8 +3,8 @@ module Data.CQRS.PostgreSQL.Internal.EventStream
     ( newEventStream
     ) where
 
-import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
+import           Control.Monad.Trans.Class (lift)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.StreamPosition
 import           Data.CQRS.Types.PersistedEvent
@@ -14,16 +14,15 @@ import           Data.CQRS.PostgreSQL.Internal.Identifiers
 import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Database.Peregrin.Metadata
 import           Database.PostgreSQL.Simple (Connection)
-import           System.IO.Streams (InputStream)
-import qualified System.IO.Streams.Combinators as SC
 import           UnliftIO.Pool (Pool)
+import           UnliftIO.Streams (InputStream)
+import qualified UnliftIO.Streams.Combinators as SC
 
 readEventStream :: (MonadUnliftIO m) => Pool Connection -> Identifiers -> StreamPosition -> (InputStream (StreamPosition, PersistedEvent' ByteString ByteString) -> m a) -> m a
 readEventStream connectionPool identifiers (StreamPosition sp0) f =
-  withRunInIO $ \io ->
-    runTransactionP connectionPool $
-      query sqlReadEvents (eventTable, sp0) $ \is ->
-        liftIO (SC.map unpack is) >>= (liftIO . io . f)
+  runTransactionP connectionPool $
+    query sqlReadEvents (eventTable, sp0) $ \is ->
+      lift $ SC.map unpack is >>= f
   where
     -- Unpack result columns
     unpack (lTimestamp, aggregateId, eventData, sequenceNumber, timestampMillis) =

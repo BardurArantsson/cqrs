@@ -9,6 +9,7 @@ import qualified Control.Concurrent.STM.TChan as C
 import           Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import           Control.Monad (void, forever, when, forM_)
 import           Control.Monad.IO.Class (MonadIO(..))
+import           Control.Monad.IO.Unlift (MonadUnliftIO)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.PersistedEvent (PersistedEvent'(..), shrink)
 import qualified Data.CQRS.Memory as M (newEventStore, newEventStream, newStorage)
@@ -32,8 +33,8 @@ import qualified Database.PostgreSQL.Harness.Client as H
 import qualified Database.PostgreSQL.Simple as PS (connectPostgreSQL, close)
 import           Network.Wai.EventSource (ServerEvent(..))
 import           System.Environment (getArgs)
-import qualified System.IO.Streams as Streams
-import           System.IO.Streams (InputStream)
+import qualified UnliftIO.Streams as Streams
+import           UnliftIO.Streams (InputStream)
 import           Web.Scotty (scotty)
 
 import           CQRSExample.TaskId (TaskId)
@@ -44,7 +45,7 @@ import           CQRSExample.Query
 import           CQRSExample.Routing
 
 -- Drain an input stream, applying an IO action to each element.
-drain :: InputStream a -> (a -> IO b) -> IO (Maybe b)
+drain :: MonadUnliftIO m => InputStream a -> (a -> m b) -> m (Maybe b)
 drain inputStream f = go Nothing
   where
     go b = do

@@ -20,14 +20,14 @@ import           Data.CQRS.Types.StreamPosition
 import           Data.Function (on)
 import           Data.Int (Int32)
 import           Data.List (sortBy)
-import           System.IO.Streams (InputStream)
-import qualified System.IO.Streams as S
-import qualified System.IO.Streams.List as SL
-import qualified System.IO.Streams.Combinators as SC
 import qualified System.Random as R
 import qualified Test.Hspec as Hspec
 import           Test.Hspec (Expectation, Spec, describe)
 import           Test.HUnit (assertBool)
+import           UnliftIO.Streams (InputStream)
+import qualified UnliftIO.Streams as S
+import qualified UnliftIO.Streams.List as SL
+import qualified UnliftIO.Streams.Combinators as SC
 
 -- Ambient data for test scope for each spec.
 data Scope i e = Scope { scopeEventStream :: EventStream i e

@@ -35,7 +35,7 @@ import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.SnapshotStore
 import           Data.Foldable (forM_)
 import           Data.Maybe (fromJust)
-import qualified System.IO.Streams.Combinators as SC
+import qualified UnliftIO.Streams.Combinators as SC
 
 -- | Command monad transformer.
 newtype CommandT i a e m b = CommandT { unCommandT :: ReaderT (CommandE i a e) m b }
@@ -187,7 +187,7 @@ getByIdFromEventStore aggregateId = do
   let ss = repositorySnapshotStore r
   let aa = repositoryAggregateAction r
   a' <- (A.applySnapshot $ A.emptyAggregate aa) <$> ssReadSnapshot ss aggregateId
-  liftIO $ esRetrieveEvents es aggregateId (A.aggregateVersion0 a') (SC.fold A.applyEvent a')
+  lift $ esRetrieveEvents es aggregateId (A.aggregateVersion0 a') (SC.fold A.applyEvent a')
 
 -- | Publish event for the current aggregate.
 publishEvent :: (MonadUnliftIO m, NFData a, NFData e) => e -> UnitOfWorkT a e (CommandT i a e m) ()

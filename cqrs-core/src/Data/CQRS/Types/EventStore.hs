@@ -7,15 +7,15 @@ module Data.CQRS.Types.EventStore
        ) where
 
 import           Control.Monad ((>=>))
-import           Control.Monad.IO.Unlift (MonadUnliftIO(..), liftIO)
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
 import           Data.Bifunctor (bimap)
 import           Data.CQRS.Types.Chunk
 import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StoreError
 import           Data.Int (Int32)
-import           System.IO.Streams (InputStream)
-import qualified System.IO.Streams.Combinators as SC
+import           UnliftIO.Streams (InputStream)
+import qualified UnliftIO.Streams.Combinators as SC
 
 -- | EventStore for events of type 'e' applied to aggregates with
 -- identifiers of type 'i'.
@@ -53,10 +53,8 @@ transform (fi, gi) (fe, ge) (EventStore storeEvents retrieveEvents retrieveAllEv
 
     retrieveEvents' :: forall a m' . (MonadUnliftIO m') => i' -> Int32 -> (InputStream (PersistedEvent e') -> m' a) -> m' a
     retrieveEvents' aggregateId' v0 p' =
-      retrieveEvents (fi aggregateId') v0 $ mapS (fmap ge) >=> p'
+      retrieveEvents (fi aggregateId') v0 $ SC.map (fmap ge) >=> p'
 
     retrieveAllEvents' :: forall a m' . (MonadUnliftIO m') => (InputStream (PersistedEvent' i' e') -> m' a) -> m' a
     retrieveAllEvents' p' =
-      retrieveAllEvents $ mapS (bimap gi ge) >=> p'
-
-    mapS f is = liftIO $ SC.map f is
+      retrieveAllEvents $ SC.map (bimap gi ge) >=> p'

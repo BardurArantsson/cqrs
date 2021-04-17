@@ -18,7 +18,7 @@ import qualified Data.CQRS.Types.EventStore as ES
 import           Data.CQRS.Types.PersistedEvent
 import           Test.Hspec (Spec, describe, shouldBe)
 import qualified Test.Hspec as Hspec
-import qualified System.IO.Streams.List as SL
+import qualified UnliftIO.Streams.List as SL
 
 -- Ambient data for test scope for each spec.
 newtype Scope i e = Scope { scopeEventStore :: EventStore i e
@@ -34,7 +34,7 @@ storeEvents aggregateId events = do
 readEvents :: i -> ScopeM (Scope i e) [PersistedEvent e]
 readEvents aggregateId = do
   eventStore <- fmap scopeEventStore ask
-  liftIO $ ES.esRetrieveEvents eventStore aggregateId (-1) SL.toList
+  ES.esRetrieveEvents eventStore aggregateId (-1) SL.toList
 
 -- Test suite for event store which stores 'ByteString' events.
 mkEventStoreSpec :: TestKitSettings a (EventStore ByteString ByteString) -> Spec

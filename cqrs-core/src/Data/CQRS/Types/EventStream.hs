@@ -3,12 +3,15 @@
 module Data.CQRS.Types.EventStream
        ( EventStream(..)
        , transform
+       , transformI
+       , transformE
        ) where
 
 import           Control.Arrow (second)
 import           Control.Monad ((>=>))
 import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
-import           Data.Bifunctor (bimap)
+import           Data.Bifunctor (first)
+import qualified Data.Bifunctor as B
 import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
 import           Data.CQRS.Types.StreamPosition
@@ -38,13 +41,32 @@ data EventStream i e = EventStream {
 -- | Transform 'EventStream' via an isomorphism for the events and
 -- aggregate IDs.
 transform :: forall e e' i i' . Iso i' i -> Iso e' e -> EventStream i e -> EventStream i' e'
-transform (fi, gi) (_, ge) (EventStream readEventStream' readAggregateEvents') =
+transform ifg efg eventStream = transformI ifg $ transformE efg eventStream
+
+-- | Transform an 'EventStream i e' to an 'EventStream j e' via
+-- an isomorphism between 'i' and 'j'.
+transformI :: forall e i i' . Iso i' i -> EventStream i e -> EventStream i' e
+transformI (fi, gi) (EventStream readEventStream' readAggregateEvents') =
     EventStream readEventStream readAggregateEvents
   where
-    readEventStream :: MonadUnliftIO m' => StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i' e') -> m' a) -> m' a
+    readEventStream :: MonadUnliftIO m' => StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i' e) -> m' a) -> m' a
     readEventStream p' f =
-      readEventStream' p' $ SC.map (second $ bimap gi ge) >=> f
+      readEventStream' p' $ SC.map (second $ first gi) >=> f
 
-    readAggregateEvents :: forall a m' . (MonadUnliftIO m') => i' -> Int32 -> (InputStream (PersistedEvent e') -> m' a) -> m' a
+    readAggregateEvents :: forall a m' . (MonadUnliftIO m') => i' -> Int32 -> (InputStream (PersistedEvent e) -> m' a) -> m' a
     readAggregateEvents aggregateId' v0 p' =
-      readAggregateEvents' (fi aggregateId') v0 $ SC.map (fmap ge) >=> p'
+      readAggregateEvents' (fi aggregateId') v0 p'
+
+-- | Transform an 'EventStream i e' to an 'EventStream i f' via
+-- an isomorphism between 'e' and 'f'.
+transformE :: forall i e e' . Iso e' e -> EventStream i e -> EventStream i e'
+transformE (_, ge) (EventStream readEventStream' readAggregateEvents') =
+    EventStream readEventStream readAggregateEvents
+  where
+    readEventStream :: MonadUnliftIO m' => StreamPosition -> (InputStream (StreamPosition, PersistedEvent' i e') -> m' a) -> m' a
+    readEventStream p' f =
+      readEventStream' p' $ SC.map (second $ B.second ge) >=> f
+
+    readAggregateEvents :: forall a m' . (MonadUnliftIO m') => i -> Int32 -> (InputStream (PersistedEvent e') -> m' a) -> m' a
+    readAggregateEvents aggregateId v0 p' =
+      readAggregateEvents' aggregateId v0 $ SC.map (fmap ge) >=> p'

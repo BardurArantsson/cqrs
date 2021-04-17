@@ -1,0 +1,39 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: e5c2d81a2d4c12dbc5b83e451e2de2bb836cc905b7ba012931bfa318e25ec970
+
+name:           foleni
+version:        0.1.0.0
+synopsis:       Concurrent queue bounded by element cost function
+description:    Concurrent queue bounded by element cost function
+category:       Data
+homepage:       https://github.com/BardurArantsson/cqrs#readme
+bug-reports:    https://github.com/BardurArantsson/cqrs/issues
+author:         Bardur Arantsson
+maintainer:     Bardur Arantsson <bardur@scientician.net>
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/BardurArantsson/cqrs
+
+library
+  exposed-modules:
+      Data.Foleni
+      Data.Foleni.Internal
+  other-modules:
+      Paths_foleni
+  hs-source-dirs:
+      src
+  ghc-options: -Wall
+  build-depends:
+      base >=4.10 && <5
+    , stm >=2.4 && <3
+    , unliftio-core >=0.1.2.0 && <0.3
+  default-language: Haskell2010

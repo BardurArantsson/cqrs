@@ -3,11 +3,9 @@ module Data.CQRS.PostgreSQL.Internal.EventStore
        ( newEventStore
        ) where
 
-import           Control.Exception (throw, catchJust)
 import           Control.Monad (forM_)
-import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..), liftIO)
 import           Data.ByteString (ByteString)
-import           Data.Pool (Pool)
 import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as C
@@ -20,6 +18,8 @@ import           Database.Peregrin.Metadata (Schema)
 import           Database.PostgreSQL.Simple (Connection, SqlError(..), Only(..), Binary(..))
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
+import           UnliftIO.Exception (throwIO, catchJust)
+import           UnliftIO.Pool (Pool)
 
 -- | Is the given 'SqlError' a duplicate key exception? This
 -- function is meant for use with 'catchJust'.
@@ -43,7 +43,7 @@ isDuplicateKey se | sqlState se == "23505" = Just ()
 -- A's events.  However, in PostgreSQL the initial read that B
 -- performs cannot see A's events because PostgreSQL's version of
 -- REPEATABLE READ prevents phantom reads.
-storeEvents :: Pool Connection -> Identifiers -> Chunk ByteString ByteString -> IO ()
+storeEvents :: (MonadUnliftIO m) => Pool Connection -> Identifiers -> Chunk ByteString ByteString -> m ()
 storeEvents cp identifiers chunk =
   translateExceptions aggregateId $
     runTransactionP cp $
@@ -64,7 +64,7 @@ storeEvents cp identifiers chunk =
     -- Translate duplicate key exceptions into StoreError.
     translateExceptions aid action =
       catchJust isDuplicateKey action $ \_ ->
-        throw $ VersionConflict aid
+        throwIO $ VersionConflict aid
     -- SQL for event insertion
     eventTable = tblEvent identifiers
     sqlInsertEvent =
@@ -72,11 +72,12 @@ storeEvents cp identifiers chunk =
       \            (\"aggregate_id\", \"event_data\", \"seq_no\", \"timestamp\") \
       \     VALUES (?, ?, ?, ?)"
 
-retrieveEvents :: Pool Connection -> Identifiers -> ByteString -> Int32 -> (InputStream (PersistedEvent ByteString) -> IO a) -> IO a
+retrieveEvents :: (MonadUnliftIO m) => Pool Connection -> Identifiers -> ByteString -> Int32 -> (InputStream (PersistedEvent ByteString) -> m a) -> m a
 retrieveEvents cp identifiers aggregateId v0 f =
-   runTransactionP cp $
-     query sqlSelectEvent (eventTable, Binary aggregateId, v0) $ \is ->
-       liftIO (SC.map unpack is) >>= (liftIO . f)
+  withRunInIO $ \io ->
+    runTransactionP cp $
+      query sqlSelectEvent (eventTable, Binary aggregateId, v0) $ \is ->
+        liftIO $ SC.map unpack is >>= (io . f)
   where
     unpack (eventData, sequenceNumber, timestampMillis) =
       PersistedEvent eventData sequenceNumber timestampMillis
@@ -90,11 +91,12 @@ retrieveEvents cp identifiers aggregateId v0 f =
       \     AND \"seq_no\" > ? \
       \ORDER BY \"seq_no\" ASC"
 
-retrieveAllEvents :: Pool Connection -> Identifiers -> (InputStream (PersistedEvent' ByteString ByteString) -> IO a) -> IO a
+retrieveAllEvents :: (MonadUnliftIO m) => Pool Connection -> Identifiers -> (InputStream (PersistedEvent' ByteString ByteString) -> m a) -> m a
 retrieveAllEvents cp identifiers f =
-  runTransactionP cp $
-    query sqlSelectAllEvents (Only eventTable) $ \is ->
-      liftIO (SC.map unpack is) >>= (liftIO . f)
+  withRunInIO $ \io ->
+    runTransactionP cp $
+      query sqlSelectAllEvents (Only eventTable) $ \is ->
+        liftIO $ SC.map unpack is >>= (io . f)
   where
     unpack (aggregateId, sequenceNumber, eventData, timestampMillis) =
         grow aggregateId $ PersistedEvent eventData sequenceNumber timestampMillis

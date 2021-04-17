@@ -5,6 +5,7 @@ module Data.CQRS.Types.Clock
        , operatingSystemClock
        ) where
 
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..), liftIO)
 import           Data.Int (Int64)
 import           Data.IORef
 import           Data.Time.Clock.POSIX (getPOSIXTime)
@@ -14,8 +15,8 @@ newtype Clock = Clock (IO Int64)
 
 -- | Read the system clock. Returns the current system time
 -- in units of milliseconds since the epoch.
-getMillis :: Clock -> IO Int64
-getMillis (Clock get) = get
+getMillis :: MonadUnliftIO m => Clock -> m Int64
+getMillis (Clock get) = liftIO get
 
 -- | Create a 'Clock' from an arbitrary IO action
 -- returning the number of elapsed milliseconds since the epoch.

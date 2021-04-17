@@ -8,6 +8,7 @@ import           Control.Concurrent.STM (atomically, TChan)
 import qualified Control.Concurrent.STM.TChan as C
 import           Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import           Control.Monad (void, forever, when, forM_)
+import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.PersistedEvent (PersistedEvent'(..), shrink)
 import qualified Data.CQRS.Memory as M (newEventStore, newEventStream, newStorage)
@@ -141,7 +142,7 @@ startServing backend = do
 
   -- Create the resository
   let repositorySettings = R.setSnapshotFrequency 10 R.defaultSettings
-  let repository = R.newRepository repositorySettings aggregateAction eventStore nullSnapshotStore publishEvents
+  let repository = R.newRepository repositorySettings aggregateAction eventStore nullSnapshotStore (liftIO . publishEvents)
 
   -- Start sourcing events.
   void $ forkIO $

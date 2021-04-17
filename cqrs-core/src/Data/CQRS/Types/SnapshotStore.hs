@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.Types.SnapshotStore
     ( SnapshotStore(..)
@@ -6,6 +7,7 @@ module Data.CQRS.Types.SnapshotStore
     ) where
 
 import           Control.Applicative ((<$>))
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.Iso
 
@@ -15,11 +17,11 @@ data SnapshotStore i a = SnapshotStore
       -- | Write out a snapshot. Snapshot version numbers are NOT
       -- checked for validity (e.g. whether they are greater than the
       -- existing snapshot version numbers).
-      ssWriteSnapshot :: i -> Snapshot a -> IO ()
+      ssWriteSnapshot :: forall m . MonadUnliftIO m => i -> Snapshot a -> m ()
     ,
       -- | Read latest snapshot of an aggregate. Snapshot stores are
       -- permitted to return 'Nothing' in all cases.
-      ssReadSnapshot :: i -> IO (Maybe (Snapshot a))
+      ssReadSnapshot :: forall m . MonadUnliftIO m => i -> m (Maybe (Snapshot a))
     }
 
 -- | Transform an implementation of 'SnapshotStore i a' to an
@@ -35,11 +37,11 @@ transform :: forall a a' i i' . (a' -> a, a -> Maybe a') -> Iso i' i -> Snapshot
 transform (fa, ga) (fi, _) (SnapshotStore writeSnapshot' readSnapshot') =
   SnapshotStore writeSnapshot readSnapshot
     where
-      writeSnapshot :: i' -> Snapshot a' -> IO ()
+      writeSnapshot :: forall m' . MonadUnliftIO m' => i' -> Snapshot a' -> m' ()
       writeSnapshot aggregateId (Snapshot v a) =
         writeSnapshot' (fi aggregateId) $ Snapshot v $ fa a
 
-      readSnapshot :: i' -> IO (Maybe (Snapshot a'))
+      readSnapshot :: forall m' . MonadUnliftIO m' => i' -> m' (Maybe (Snapshot a'))
       readSnapshot aggregateId =
         (f' =<<) <$> readSnapshot' (fi aggregateId)
           where

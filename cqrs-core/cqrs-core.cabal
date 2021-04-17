@@ -23,6 +23,7 @@ Library
                      , io-streams >= 1.2 && < 2
                      , time >= 1.8 && < 1.9
                      , transformers >= 0.5.2 && < 0.6
+                     , unliftio-core >= 0.1.1.0 && < 0.2
   Default-language:    Haskell2010
   ghc-options:         -Wall
   hs-source-dirs:      src
@@ -33,6 +34,7 @@ Library
                        Data.CQRS.Internal.PersistedEvent
                        Data.CQRS.Internal.Repository
                        Data.CQRS.Internal.StreamPosition
+                       Data.CQRS.Internal.UState
                        Data.CQRS.Types.AggregateAction
                        Data.CQRS.Types.Chunk
                        Data.CQRS.Types.Clock

@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-| Module to import for the "Command" side of the application. -}
 module Data.CQRS.Command
     ( -- Re-exports for user convenience:
@@ -17,13 +18,14 @@ module Data.CQRS.Command
 
 import           Control.DeepSeq (NFData)
 import           Control.Monad (join, void)
-import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           Control.Monad.IO.Class (MonadIO(..))
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..), liftIO)
 import           Control.Monad.Trans.Class (MonadTrans(..), lift)
-import           Control.Monad.Trans.State.Strict (StateT, runStateT, get, modify')
-import           Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
+import           Control.Monad.Trans.Reader (ReaderT(..), runReaderT, ask)
 import           Data.CQRS.Internal.Aggregate (Aggregate)
 import qualified Data.CQRS.Internal.Aggregate as A
 import           Data.CQRS.Internal.Repository
+import           Data.CQRS.Internal.UState
 import           Data.CQRS.Types.AggregateAction (AggregateAction)
 import qualified Data.CQRS.Types.Chunk as C
 import           Data.CQRS.Types.Clock (Clock, getMillis)
@@ -45,11 +47,16 @@ instance MonadTrans (CommandT i a e) where
 instance MonadIO m => MonadIO (CommandT i a e m) where
     liftIO m = CommandT $ liftIO m
 
+instance MonadUnliftIO m => MonadUnliftIO (CommandT i a e m) where
+  withRunInIO f = CommandT $ ReaderT $ \r ->
+    withRunInIO $ \io ->
+      f (io . flip (runReaderT . unCommandT) r)
+
 -- | Environment for CommandT.
 newtype CommandE i a e = CommandE { commandRepository :: Repository i a e }
 
 -- | Unit of work monad transformer.
-newtype UnitOfWorkT a e m b = UnitOfWorkT { unUnitOfWorkT :: StateT (UnitOfWorkE a e) m b }
+newtype UnitOfWorkT a e m b = UnitOfWorkT { unUnitOfWorkT :: UStateT (UnitOfWorkE a e) m b }
   deriving (Functor, Applicative, Monad)
 
 instance MonadTrans (UnitOfWorkT a e) where
@@ -57,6 +64,10 @@ instance MonadTrans (UnitOfWorkT a e) where
 
 instance MonadIO m => MonadIO (UnitOfWorkT a e m) where
     liftIO m = UnitOfWorkT $ liftIO m
+
+instance MonadUnliftIO m => MonadUnliftIO (UnitOfWorkT a e m) where
+  withRunInIO f = UnitOfWorkT $
+    withRunInIO $ \io -> f (io . unUnitOfWorkT)
 
 -- | Environment for UnitOfWorkT.
 data UnitOfWorkE a e =
@@ -69,11 +80,11 @@ runCommandT :: Repository i a e -> CommandT i a e m b -> m b
 runCommandT repository (CommandT command) = runReaderT command $ CommandE repository
 
 -- | Run a command against a repository, ignoring the result.
-execCommandT :: (MonadIO m) => Repository i a e -> CommandT i a e m b -> m ()
+execCommandT :: (MonadUnliftIO m) => Repository i a e -> CommandT i a e m b -> m ()
 execCommandT repository = void . runCommandT repository
 
 -- Write out all the changes for a given aggregate.
-writeChanges :: (MonadIO m) => i -> Aggregate a e -> CommandT i a e m ()
+writeChanges :: (MonadUnliftIO m) => i -> Aggregate a e -> CommandT i a e m ()
 writeChanges aggregateId aggregate = CommandT $ do
   repository <- fmap commandRepository ask
   let snapshotStore = repositorySnapshotStore repository
@@ -84,13 +95,13 @@ writeChanges aggregateId aggregate = CommandT $ do
   -- We only care if new events were generated
   forM_ maybeChunk $ \chunk -> do
     -- Commit events to event store.
-    liftIO $ esStoreEvents eventStore chunk
+    esStoreEvents eventStore chunk
     -- Publish events written so far.
-    liftIO $ publishEvents chunk
+    publishEvents chunk
     -- Write out the snapshot (if applicable).
     forM_ (settingsSnapshotFrequency $ repositorySettings repository) $ \snapshotFrequency ->
       forM_ (snapshotForAggregate $ fromIntegral snapshotFrequency) $ \snapshot ->
-        liftIO $ ssWriteSnapshot snapshotStore aggregateId snapshot
+        ssWriteSnapshot snapshotStore aggregateId snapshot
   where
     snapshotForAggregate maxDelta = join $ flip fmap (A.aggregateSnapshot aggregate) $ \(v, a) ->
       -- If we've advanced N events past the last snapshot, we create a
@@ -116,7 +127,7 @@ getClock = CommandT $ fmap (settingsClock . repositorySettings .commandRepositor
 -- in the unit of work that are lifted into the nested monad may be
 -- performed regardless. (This is due to optimistic concurrency
 -- control.)
-createAggregate :: (MonadIO m) => i -> (UnitOfWorkT a e (CommandT i a e m) (Maybe a) -> UnitOfWorkT a e (CommandT i a e m) b) -> CommandT i a e m b
+createAggregate :: forall a e i m b . (MonadUnliftIO m) => i -> (UnitOfWorkT a e (CommandT i a e m) (Maybe a) -> UnitOfWorkT a e (CommandT i a e m) b) -> CommandT i a e m b
 createAggregate aggregateId unitOfWork = do
   -- We use an "empty" aggregate state as the starting point
   -- here. We'll automatically conflict when trying to save if there
@@ -126,14 +137,14 @@ createAggregate aggregateId unitOfWork = do
   (r, s) <- do
     aggregateAction <- getAggregateAction
     clock <- getClock
-    runStateT run $ UnitOfWorkE (A.emptyAggregate aggregateAction) clock
+    runUStateT run $ UnitOfWorkE (A.emptyAggregate aggregateAction) clock
   -- Write out any changes.
   writeChanges aggregateId $ uowAggregate s
   -- Return the result of the computation
   CommandT $ return r
   where
     run = do
-      let getter = fmap (A.aggregateValue . uowAggregate) get
+      let getter = fmap (A.aggregateValue . uowAggregate) getU
       unUnitOfWorkT $ unitOfWork $ UnitOfWorkT getter
 
 -- | Update aggregate with the supplied unit of work. The unit of work
@@ -145,7 +156,7 @@ createAggregate aggregateId unitOfWork = do
 -- END of the unit of work, and so any operations in the unit of work
 -- that are lifted into the nested monad may be performed
 -- regardless. (This is due to optimistic concurrency control.)
-updateAggregate :: (MonadIO m) => i -> (UnitOfWorkT a e (CommandT i a e m) a -> UnitOfWorkT a e (CommandT i a e m) b) -> CommandT i a e m (Maybe b)
+updateAggregate :: (MonadUnliftIO m) => i -> (UnitOfWorkT a e (CommandT i a e m) a -> UnitOfWorkT a e (CommandT i a e m) b) -> CommandT i a e m (Maybe b)
 updateAggregate aggregateId unitOfWork = do
   clock <- getClock
   CommandT $ do
@@ -154,33 +165,36 @@ updateAggregate aggregateId unitOfWork = do
       Nothing ->
         return Nothing
       Just _ -> do
-        (r, s) <- runStateT run $ UnitOfWorkE aggregate clock
+        (r, s) <- runUStateT run $ UnitOfWorkE aggregate clock
         writeChanges aggregateId $ uowAggregate s
         return $ Just r
   where
     run = do
-      let getter = fmap (fromJust . A.aggregateValue . uowAggregate) get
+      let getter = fmap (fromJust . A.aggregateValue . uowAggregate) getU
       unUnitOfWorkT $ unitOfWork $ UnitOfWorkT getter
 
 -- | Read value of an aggregate if it exists. If any update needs to
 -- be performed on the aggregate, 'createAggregate' and 'updateAggregate'
 -- should be used.
-readAggregate :: (MonadIO m) => i -> CommandT i a e m (Maybe a)
+readAggregate :: (MonadUnliftIO m) => i -> CommandT i a e m (Maybe a)
 readAggregate = CommandT . fmap A.aggregateValue . getByIdFromEventStore
 
 -- Retrieve aggregate from event store.
-getByIdFromEventStore :: (MonadIO m) => i -> ReaderT (CommandE i a e) m (Aggregate a e)
+getByIdFromEventStore :: (MonadUnliftIO m) => i -> ReaderT (CommandE i a e) m (Aggregate a e)
 getByIdFromEventStore aggregateId = do
   r <- fmap commandRepository ask
   let es = repositoryEventStore r
   let ss = repositorySnapshotStore r
   let aa = repositoryAggregateAction r
-  a' <- fmap (A.applySnapshot $ A.emptyAggregate aa) $ liftIO $ ssReadSnapshot ss aggregateId
+  a' <- (A.applySnapshot $ A.emptyAggregate aa) <$> ssReadSnapshot ss aggregateId
   liftIO $ esRetrieveEvents es aggregateId (A.aggregateVersion0 a') (SC.fold A.applyEvent a')
 
 -- | Publish event for the current aggregate.
-publishEvent :: (MonadIO m, NFData a, NFData e) => e -> UnitOfWorkT a e (CommandT i a e m) ()
+publishEvent :: (MonadUnliftIO m, NFData a, NFData e) => e -> UnitOfWorkT a e (CommandT i a e m) ()
 publishEvent event = UnitOfWorkT $ do
-  clock <- fmap uowClock get
-  ts <- liftIO $ getMillis clock
-  modify' (\s -> s { uowAggregate = A.publishEvent (uowAggregate s) event ts })
+  env <- getU
+  -- Apply updates
+  a <- fmap uowAggregate getU
+  a' <- fmap (A.publishEvent a event) $ getMillis $ uowClock env
+  -- Update the aggregate
+  modifyU $ \s -> s { uowAggregate = a' }

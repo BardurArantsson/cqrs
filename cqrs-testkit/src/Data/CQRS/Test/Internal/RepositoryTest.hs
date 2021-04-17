@@ -61,7 +61,7 @@ mkRunScope' :: Int -> TestKitSettings s (EventStore ByteString ByteString, Snaps
 mkRunScope' snapshotFrequency testKitSettings = mkRunScope testKitSettings $ \a -> do
   -- We collect all events published by the repository for verification
   publishedEventsRef <- newIORef []
-  let publish chunk =
+  let publish chunk = liftIO $
         atomicModifyIORef' publishedEventsRef $ \events ->
             (events ++ NEL.toList (fmap (\(PersistedEvent e s ts) -> (i, e, s, ts)) events'), ())
           where (i, events') = Chunk.toList chunk

@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Data.CQRS.Internal.Repository
     ( Repository(..)
     , Settings(..)
@@ -7,7 +9,7 @@ module Data.CQRS.Internal.Repository
     , newRepository
     ) where
 
-import           Control.Monad (void)
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
 import           Data.CQRS.Types.AggregateAction
 import           Data.CQRS.Types.Chunk
 import           Data.CQRS.Types.Clock
@@ -47,13 +49,11 @@ data Repository i a e = Repository
     { repositoryAggregateAction :: AggregateAction a e
     , repositoryEventStore :: EventStore i e
     , repositorySnapshotStore :: SnapshotStore i a
-    , repositoryPublishEvents :: Chunk i e -> IO ()
+    , repositoryPublishEvents :: forall m . (MonadUnliftIO m) => Chunk i e -> m ()
     , repositorySettings :: Settings
     }
 
 -- | Create a repository.
-newRepository :: Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> (Chunk i e -> IO r) -> Repository i a e
+newRepository :: forall i a e . Settings -> AggregateAction a e -> EventStore i e -> SnapshotStore i a -> (forall m . (MonadUnliftIO m) => Chunk i e -> m ()) -> Repository i a e
 newRepository settings aggregateAction eventStore snapshotStore publishEvents =
-  Repository aggregateAction eventStore snapshotStore publishEvents' settings
-  where
-    publishEvents' inputStream = void $ publishEvents inputStream
+  Repository aggregateAction eventStore snapshotStore publishEvents settings

@@ -2,8 +2,8 @@ module Data.CQRS.Memory.Internal.EventStore
     ( newEventStore
     ) where
 
-import           Control.Exception (throwIO)
 import           Control.Monad (when, forM_)
+import           Control.Monad.IO.Unlift (MonadUnliftIO, liftIO, withRunInIO)
 import           Data.CQRS.Internal.PersistedEvent
 import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as C
@@ -12,7 +12,6 @@ import           Data.CQRS.Types.StoreError (StoreError(..))
 import           Data.CQRS.Memory.Internal.Storage
 import qualified Data.Foldable as F
 import           Data.Int (Int32)
-import           Data.IORef (atomicModifyIORef', readIORef, IORef)
 import           Data.List (nub, sortBy)
 import           Data.Ord (comparing)
 import           Data.Sequence (Seq, (><))
@@ -21,8 +20,10 @@ import           Data.Typeable (Typeable)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.List as SL
 import qualified System.IO.Streams.Combinators as SC
+import           UnliftIO.Exception (throwIO)
+import           UnliftIO.IORef (atomicModifyIORef', readIORef, IORef)
 
-storeEvents :: (Show i, Eq i, Typeable i) => Storage i e -> Chunk i e -> IO ()
+storeEvents :: (Show i, Eq i, Typeable i, MonadUnliftIO m) => Storage i e -> Chunk i e -> m ()
 storeEvents (Storage store) chunk = do
     -- There's a slight "inconsistency" here with runSanityCheck seeing a potentially
     -- different (earlier) set of events, but in the grand scheme of things it probably
@@ -46,12 +47,12 @@ storeEvents (Storage store) chunk = do
       events <- eventsByAggregateId store aggregateId
       -- Check for duplicates in the input list itself
       let newSequenceNumbers = F.toList $ fmap peSequenceNumber newEvents
-      when (nub newSequenceNumbers /= newSequenceNumbers) $ throwIO $ VersionConflict aggregateId
+      when (nub newSequenceNumbers /= newSequenceNumbers) $ liftIO $ throwIO $ VersionConflict aggregateId
       -- Check for duplicate events
       let eventSequenceNumbers = F.toList $ fmap peSequenceNumber events
       forM_ newSequenceNumbers $ \newSequenceNumber ->
         when (newSequenceNumber `elem` eventSequenceNumbers) $
-             throwIO $ VersionConflict aggregateId
+             liftIO $ throwIO $ VersionConflict aggregateId
       -- Check version numbers; this exists as a sanity check for tests
       let vE = lastStoredVersion $ F.toList events
       let v0 = if null newEvents then
@@ -65,23 +66,25 @@ storeEvents (Storage store) chunk = do
 
     (aggregateId, newEvents) = C.toList chunk
 
-retrieveEvents :: (Eq i) => Storage i e -> i -> Int32 -> (InputStream (PersistedEvent e) -> IO a) -> IO a
+retrieveEvents :: (Eq i, MonadUnliftIO m) => Storage i e -> i -> Int32 -> (InputStream (PersistedEvent e) -> m a) -> m a
 retrieveEvents (Storage store) aggregateId v0 f = do
-  events <- fmap F.toList $ eventsByAggregateId store aggregateId
-  SL.fromList events >>= SC.filter (\e -> peSequenceNumber e > v0) >>= f
+  events <- F.toList <$> eventsByAggregateId store aggregateId
+  withRunInIO $ \io ->
+    liftIO $ SL.fromList events >>= SC.filter (\e -> peSequenceNumber e > v0) >>= (io . f)
 
-retrieveAllEvents :: (Ord i) => Storage i e -> (InputStream (PersistedEvent' i e) -> IO a) -> IO a
+retrieveAllEvents :: (Ord i, MonadUnliftIO m) => Storage i e -> (InputStream (PersistedEvent' i e) -> m a) -> m a
 retrieveAllEvents (Storage store) f = do
   -- We won't bother with efficiency since this is only
   -- really used for debugging/tests.
-  events <- fmap msEvents $ readIORef store
+  events <- msEvents <$> readIORef store
   let eventList = F.toList events
-  inputStream <- SL.fromList $ sortBy (comparing cf) eventList
-  SC.map (\(Event i event _) -> grow i event) inputStream >>= f
+  inputStream <- liftIO $ SL.fromList $ sortBy (comparing cf) eventList
+  withRunInIO $ \io ->
+    SC.map (\(Event i event _) -> grow i event) inputStream >>= (io . f)
   where
     cf e = (eAggregateId e, peSequenceNumber $ ePersistedEvent e)
 
-eventsByAggregateId :: (Eq i) => IORef (Store i e) -> i -> IO (Seq (PersistedEvent e))
+eventsByAggregateId :: (Eq i, MonadUnliftIO m) => IORef (Store i e) -> i -> m (Seq (PersistedEvent e))
 eventsByAggregateId store aggregateId = do
   events <- readIORef store
   return $ fmap ePersistedEvent $ S.filter (\e -> aggregateId == eAggregateId e) $ msEvents events

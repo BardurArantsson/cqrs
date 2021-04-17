@@ -15,20 +15,20 @@ module Data.CQRS.PostgreSQL.Internal.Query
        , unsafeRunQueryT
        ) where
 
-import           Control.Exception.Base (bracket)
 import           Control.Monad (void)
-import           Control.Monad.IO.Class (liftIO, MonadIO)
 import           Control.Monad.Trans.Class (lift, MonadTrans(..))
 import           Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
 import           Data.Int (Int64)
-import           Data.IORef (newIORef, readIORef, modifyIORef', writeIORef)
 import           Database.PostgreSQL.Simple (Connection, FromRow, ToRow)
 import           Database.PostgreSQL.Simple.Types (Query(..))
 import qualified Database.PostgreSQL.Simple as PS
+import           Database.PostgreSQL.Simple.Cursor (Cursor)
 import qualified Database.PostgreSQL.Simple.Cursor as PSC
 import qualified System.IO.Streams as Streams
 import           System.IO.Streams.Internal (InputStream(..))
 import qualified System.IO.Streams.List as SL
+import           UnliftIO (MonadIO(..), MonadUnliftIO(..), UnliftIO(..), liftIO, bracket, withUnliftIO)
+import           UnliftIO.IORef (newIORef, readIORef, modifyIORef', writeIORef)
 
 -- | Query monad transformer.
 newtype QueryT m a = QueryT { unQueryT :: ReaderT Connection m a }
@@ -40,37 +40,52 @@ instance MonadTrans QueryT where
 instance MonadIO m => MonadIO (QueryT m) where
   liftIO m = QueryT $ liftIO m
 
+instance MonadUnliftIO m => MonadUnliftIO (QueryT m) where
+  askUnliftIO =
+    QueryT $
+      withUnliftIO $ \u ->
+       return $ UnliftIO (unliftIO u . unQueryT)
+
 -- | Run query on a given 'Connection'. Performs no transaction
 -- control.
 unsafeRunQueryT :: Connection -> QueryT m a -> m a
 unsafeRunQueryT c (QueryT q) = runReaderT q c
 
 -- | Execute a query with no result.
-execute :: ToRow p => Query -> p -> QueryT IO ()
+execute :: (MonadUnliftIO m, ToRow p) => Query -> p -> QueryT m ()
 execute q parameters = void $ execute' q parameters
 
 -- | Execute a query an return the number of updated rows (if available).
-execute' :: ToRow p => Query -> p -> QueryT IO Int64
+execute' :: (MonadUnliftIO m, ToRow p) => Query -> p -> QueryT m Int64
 execute' q parameters = QueryT $ do
   connection <- ask
   liftIO $ unsafeExecute connection q parameters
 
 -- | Run a quest which is expected to return at most one result. Any
 -- result rows past the first will be __ignored__.
-query1 :: (ToRow p, FromRow r) => Query -> p -> QueryT IO (Maybe r)
+query1 :: (MonadUnliftIO m, ToRow p, FromRow r) => Query -> p -> QueryT m (Maybe r)
 query1 q parameters =
   query q parameters (liftIO . Streams.read)
 
 -- | Run a query and return a list of the rows in the result. __This will read
 -- ALL rows in the result into memory. It is ONLY meant for testing unless
 -- you're ABSOLUTELY SURE that you won't end up using too much memory!__
-queryAll :: (ToRow p, FromRow r) => Query -> p -> QueryT IO [r]
+queryAll :: (MonadUnliftIO m, ToRow p, FromRow r) => Query -> p -> QueryT m [r]
 queryAll q parameters =
   query q parameters (liftIO . SL.toList)
 
 -- | Execute query, returning the number of updated rows.
-unsafeExecute :: (ToRow p) => Connection -> Query -> p -> IO Int64
-unsafeExecute = PS.execute
+unsafeExecute :: (MonadUnliftIO m, ToRow p) => Connection -> Query -> p -> m Int64
+unsafeExecute c q p = liftIO $ PS.execute c q p
+
+-- | Declare a cursor.
+declareCursor :: (MonadUnliftIO m, ToRow p) => Query -> p -> ReaderT Connection m Cursor
+declareCursor q parameters = do
+  connection <- ask
+  liftIO $ PS.formatQuery connection q parameters >>= PSC.declareCursor connection . Query
+
+closeCursor :: MonadUnliftIO m => Cursor -> ReaderT Connection m ()
+closeCursor cursor = liftIO $ PSC.closeCursor cursor
 
 -- | State for query execution.
 data BufferState a = Done [a]
@@ -79,12 +94,11 @@ data BufferState a = Done [a]
 -- | Run a query and fold over the results. The action receives an
 -- 'InputStream' over all the rows in the result. The input stream is
 -- only valid for that scope.
-query :: (ToRow p, FromRow r) => Query -> p -> (InputStream r -> QueryT IO a) -> QueryT IO a
+query :: forall p r m a . (ToRow p, FromRow r, MonadUnliftIO m) => Query -> p -> (InputStream r -> QueryT m a) -> QueryT m a
 query q parameters f = QueryT $ do
-  -- Get the connection
-  connection <- ask
   -- Feeding function
-  let feed cursor = do
+  let feed :: Cursor -> ReaderT Connection m a
+      feed cursor = do
         -- Start with an empty buffer.
         bufferRef <- newIORef $ Rows []
         -- Create the stream
@@ -92,13 +106,12 @@ query q parameters f = QueryT $ do
               (read' cursor bufferRef)
               (unread bufferRef)
         -- Give input stream to 'f'
-        runReaderT (unQueryT $ f inputStream) connection
-  -- Do the query subtitution
-  q' <- liftIO $ Query <$> PS.formatQuery connection q parameters
+        unQueryT $ f inputStream
+
   -- Run inside a bracket to ensure cursor release.
-  liftIO $ bracket
-    (PSC.declareCursor connection q')
-    PSC.closeCursor
+  bracket
+    (declareCursor q parameters)
+    closeCursor
     feed
 
   where

@@ -3,17 +3,18 @@ module Data.CQRS.PostgreSQL.Internal.SnapshotStore
     ( newSnapshotStore
     ) where
 
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Types.Snapshot (Snapshot(..))
 import           Data.CQRS.Types.SnapshotStore (SnapshotStore(..))
 import           Data.CQRS.PostgreSQL.Internal.Query
 import           Data.CQRS.PostgreSQL.Internal.Transaction
 import           Data.CQRS.PostgreSQL.Internal.Identifiers
-import           Data.Pool (Pool)
 import           Database.Peregrin.Metadata (Schema)
 import           Database.PostgreSQL.Simple (Connection, Binary(..))
+import           UnliftIO.Pool (Pool)
 
-writeSnapshot :: Pool Connection -> Identifiers -> ByteString -> Snapshot ByteString -> IO ()
+writeSnapshot :: MonadUnliftIO m => Pool Connection -> Identifiers -> ByteString -> Snapshot ByteString -> m ()
 writeSnapshot connectionPool identifiers aggregateId (Snapshot v d) =
   -- We ignore the possibility of data races with others trying to
   -- update the same snapshot since snapshots aren't important enough
@@ -36,8 +37,7 @@ writeSnapshot connectionPool identifiers aggregateId (Snapshot v d) =
       \        SET \"data\" = ? \
       \          , \"version\" = ?"
 
-
-readSnapshot :: Pool Connection -> Identifiers -> ByteString -> IO (Maybe (Snapshot ByteString))
+readSnapshot :: MonadUnliftIO m => Pool Connection -> Identifiers -> ByteString -> m (Maybe (Snapshot ByteString))
 readSnapshot connectionPool identifiers aggregateId =
   runTransactionP connectionPool $ do
     -- Run the query.

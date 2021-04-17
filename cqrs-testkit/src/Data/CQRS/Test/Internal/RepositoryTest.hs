@@ -18,9 +18,7 @@ import           Data.CQRS.Repository
 import qualified Data.CQRS.Types.Chunk as Chunk
 import           Data.CQRS.Types.Clock
 import           Data.CQRS.Types.PersistedEvent
-import           Data.CQRS.Types.EventStore (EventStore)
-import           Data.CQRS.Types.StorageBackend (newStorageBackend, StorageBackend, disableSnapshots)
-import           Data.CQRS.Types.SnapshotStore (nullSnapshotStore, SnapshotStore)
+import           Data.CQRS.Types.StorageBackend (StorageBackend, disableSnapshots)
 import           Data.CQRS.Test.Internal.AggregateAction (byteStringAggregateAction)
 import           Data.CQRS.Test.Internal.Scope (ScopeM, verify, mkRunScope)
 import           Data.CQRS.Test.Internal.TestKitSettings

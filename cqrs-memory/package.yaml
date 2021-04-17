@@ -20,7 +20,7 @@ dependencies:
   - *dep_unliftio-streams
 
 library:
-  exposed-modules:     
+  exposed-modules:
     - Data.CQRS.Memory.Internal.EventStore
     - Data.CQRS.Memory.Internal.EventStream
     - Data.CQRS.Memory.Internal.KVStore
@@ -34,7 +34,7 @@ tests:
   test:
     source-dirs: src-test
     main: Main.hs
-    dependencies: 
+    dependencies:
       - *dep_cqrs-memory
       - *dep_cqrs-core
       - *dep_cqrs-testkit

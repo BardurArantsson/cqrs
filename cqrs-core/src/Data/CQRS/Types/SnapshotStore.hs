@@ -3,6 +3,8 @@
 module Data.CQRS.Types.SnapshotStore
     ( SnapshotStore(..)
     , transform
+    , transformI
+    , transformA
     , nullSnapshotStore
     ) where
 
@@ -34,16 +36,36 @@ data SnapshotStore i a = SnapshotStore
 -- complicated versioning of snapshot data by using simple version
 -- tags/hashes to determine compatibility with stored snapshots.
 transform :: forall a a' i i' . (a' -> a, a -> Maybe a') -> Iso i' i -> SnapshotStore i a -> SnapshotStore i' a'
-transform (fa, ga) (fi, _) (SnapshotStore writeSnapshot' readSnapshot') =
+transform afg ifg snapshotStore =
+  transformA afg $ transformI ifg snapshotStore
+
+-- | Transform a 'SnapshotStore i a' to a 'SnapshotStore j a' using
+-- and isomorphism between 'i' and 'j'.
+transformI :: forall a i i' . Iso i' i -> SnapshotStore i a -> SnapshotStore i' a
+transformI (fi, _) (SnapshotStore writeSnapshot' readSnapshot') =
   SnapshotStore writeSnapshot readSnapshot
     where
-      writeSnapshot :: forall m' . MonadUnliftIO m' => i' -> Snapshot a' -> m' ()
-      writeSnapshot aggregateId (Snapshot v a) =
-        writeSnapshot' (fi aggregateId) $ Snapshot v $ fa a
+      writeSnapshot :: forall m' . MonadUnliftIO m' => i' -> Snapshot a -> m' ()
+      writeSnapshot aggregateId snapshot =
+        writeSnapshot' (fi aggregateId) snapshot
 
-      readSnapshot :: forall m' . MonadUnliftIO m' => i' -> m' (Maybe (Snapshot a'))
+      readSnapshot :: forall m' . MonadUnliftIO m' => i' -> m' (Maybe (Snapshot a))
       readSnapshot aggregateId =
-        (f' =<<) <$> readSnapshot' (fi aggregateId)
+        readSnapshot' (fi aggregateId)
+
+-- | Transform a 'SnapshotStore i a' to a 'SnapshotStore i b' using
+-- and isomorphism between 'a' and 'b'.
+transformA :: forall a a' i . (a' -> a, a -> Maybe a') -> SnapshotStore i a -> SnapshotStore i a'
+transformA (fa, ga) (SnapshotStore writeSnapshot' readSnapshot') =
+  SnapshotStore writeSnapshot readSnapshot
+    where
+      writeSnapshot :: forall m' . MonadUnliftIO m' => i -> Snapshot a' -> m' ()
+      writeSnapshot aggregateId (Snapshot v a) =
+        writeSnapshot' aggregateId $ Snapshot v $ fa a
+
+      readSnapshot :: forall m' . MonadUnliftIO m' => i -> m' (Maybe (Snapshot a'))
+      readSnapshot aggregateId =
+        (f' =<<) <$> readSnapshot' aggregateId
           where
             f' (Snapshot v a) = ga a >>= Just . Snapshot v
 

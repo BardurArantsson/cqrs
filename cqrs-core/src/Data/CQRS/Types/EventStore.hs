@@ -4,11 +4,13 @@ module Data.CQRS.Types.EventStore
        ( EventStore(..)
        , StoreError(..)
        , transform
+       , transformI
+       , transformE
        ) where
 
 import           Control.Monad ((>=>))
 import           Control.Monad.IO.Unlift (MonadUnliftIO(..))
-import           Data.Bifunctor (bimap)
+import           Data.Bifunctor (first, second)
 import           Data.CQRS.Types.Chunk
 import           Data.CQRS.Types.Iso
 import           Data.CQRS.Types.PersistedEvent
@@ -45,16 +47,39 @@ data EventStore i e = EventStore {
 -- be used to add serialization/deserialization to event stores which
 -- do not support storing anything other than binary data.
 transform :: forall e' e i' i . Iso i' i -> Iso e' e -> EventStore i e -> EventStore i' e'
-transform (fi, gi) (fe, ge) (EventStore storeEvents retrieveEvents retrieveAllEvents) =
+transform ifg efg eventStore =
+  transformI ifg $ transformE efg eventStore
+
+-- | Transform an 'EventStore i e' to an 'EventStore j e' using
+-- an isomorphism between 'i' and 'j'.
+transformI :: forall i' i e . Iso i' i -> EventStore i e -> EventStore i' e
+transformI (fi, gi) (EventStore storeEvents retrieveEvents retrieveAllEvents) =
     EventStore storeEvents' retrieveEvents' retrieveAllEvents'
   where
-    storeEvents' :: forall m' . (MonadUnliftIO m') => Chunk i' e' -> m' ()
-    storeEvents' = storeEvents . bimap fi fe
+    storeEvents' :: forall m' . (MonadUnliftIO m') => Chunk i' e -> m' ()
+    storeEvents' = storeEvents . first fi
 
-    retrieveEvents' :: forall a m' . (MonadUnliftIO m') => i' -> Int32 -> (InputStream (PersistedEvent e') -> m' a) -> m' a
+    retrieveEvents' :: forall a m' . (MonadUnliftIO m') => i' -> Int32 -> (InputStream (PersistedEvent e) -> m' a) -> m' a
     retrieveEvents' aggregateId' v0 p' =
-      retrieveEvents (fi aggregateId') v0 $ SC.map (fmap ge) >=> p'
+      retrieveEvents (fi aggregateId') v0 p'
 
-    retrieveAllEvents' :: forall a m' . (MonadUnliftIO m') => (InputStream (PersistedEvent' i' e') -> m' a) -> m' a
+    retrieveAllEvents' :: forall a m' . (MonadUnliftIO m') => (InputStream (PersistedEvent' i' e) -> m' a) -> m' a
     retrieveAllEvents' p' =
-      retrieveAllEvents $ SC.map (bimap gi ge) >=> p'
+      retrieveAllEvents $ SC.map (first gi) >=> p'
+
+-- | Transform an 'EventStore i e' to an 'EventStore i f' using
+-- an isomorphism between 'e' and 'f'.
+transformE :: forall e' e i . Iso e' e -> EventStore i e -> EventStore i e'
+transformE (fe, ge) (EventStore storeEvents retrieveEvents retrieveAllEvents) =
+    EventStore storeEvents' retrieveEvents' retrieveAllEvents'
+  where
+    storeEvents' :: forall m' . (MonadUnliftIO m') => Chunk i e' -> m' ()
+    storeEvents' = storeEvents . second fe
+
+    retrieveEvents' :: forall a m' . (MonadUnliftIO m') => i -> Int32 -> (InputStream (PersistedEvent e') -> m' a) -> m' a
+    retrieveEvents' aggregateId v0 p' =
+      retrieveEvents aggregateId v0 $ SC.map (fmap ge) >=> p'
+
+    retrieveAllEvents' :: forall a m' . (MonadUnliftIO m') => (InputStream (PersistedEvent' i e') -> m' a) -> m' a
+    retrieveAllEvents' p' =
+      retrieveAllEvents $ SC.map (second ge) >=> p'

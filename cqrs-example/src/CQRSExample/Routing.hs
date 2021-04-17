@@ -11,7 +11,7 @@ import           Control.Concurrent.STM (atomically, TChan)
 import           Control.Concurrent.STM.TChan (dupTChan, readTChan)
 import           Control.Concurrent.STM.TVar (TVar)
 import           Data.Aeson.Types (ToJSON(..), Value(..))
-import qualified Data.Aeson.Encode as AE
+import           Data.Aeson (encode)
 import           Data.CQRS.Command (Repository, runCommandT)
 import           Network.Wai.EventSource (ServerEvent(..))
 import           Network.Wai.EventSource.EventStream (eventToBuilder)
@@ -28,7 +28,7 @@ import           CQRSExample.TaskId (TaskId)
 -- Convert a JSON value to a server event.
 toServerEvent :: ToJSON j => j -> ServerEvent
 toServerEvent j = ServerEvent Nothing Nothing builders
-    where builders = [ fromLazyByteString $ AE.encode j ]
+    where builders = [ fromLazyByteString $ encode j ]
 
 -- Routes for the example application.
 routes :: TVar QueryState -> Repository TaskId Task Event -> TChan ServerEvent -> ScottyM ()

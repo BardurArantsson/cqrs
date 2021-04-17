@@ -24,7 +24,7 @@ Executable cqrs-example
   Main-is:           CQRSExample/Main.hs
   Ghc-options:       -Wall
   Build-depends:     base >= 4.9 && < 5
-                   , aeson >= 0.8 && < 0.12
+                   , aeson >= 1.4 && < 2
                    , async >= 2.0 && < 3
                    , base16-bytestring >= 0.1.1 && < 0.2
                    , blaze-builder >= 0.4 && < 0.5

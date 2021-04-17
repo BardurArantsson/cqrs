@@ -3,10 +3,24 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: peregrin-0.3.1@sha256:40b6a77c88a416223aa55e9d3a2bc44e7fd7a619d25f36beb0a996e113460a94,1665
+    pantry-tree:
+      size: 421
+      sha256: 91d6ecd00a8cda73452338afc5eda4813e228428b4ca1a28baa9e853d1907d66
+  original:
+    hackage: peregrin-0.3.1
+- completed:
+    hackage: unliftio-streams-0.1.1.1@sha256:c6ba6a939caab5abbeb92d98eb56c7af67e1bd966bde3f6d3ef38c5c200967f4,1239
+    pantry-tree:
+      size: 652
+      sha256: 157e47411bc5abd5d084ece9e09c95bbf450ff3f3b54bdf22c5d8144cef3884c
+  original:
+    hackage: unliftio-streams-0.1.1.1
 snapshots:
 - completed:
-    size: 525662
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/15.yaml
-    sha256: c5e673e5723931b64ef2eb5004f6d9ea3c95b58d48388dbc4de6f66b97c81f7a
-  original: lts-14.15
+    size: 567037
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/17/9.yaml
+    sha256: d7d8d5106e53d1669964bd8bd2b0f88a5ad192d772f5376384b76738fd992311
+  original: lts-17.9

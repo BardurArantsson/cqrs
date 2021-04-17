@@ -21,7 +21,7 @@ Library
                      , containers >= 0.5 && < 1
                      , deepseq >= 1.4 && < 2
                      , io-streams >= 1.2 && < 2
-                     , time >= 1.6 && < 1.7
+                     , time >= 1.8 && < 1.9
                      , transformers >= 0.5.2 && < 0.6
   Default-language:    Haskell2010
   ghc-options:         -Wall

@@ -17,7 +17,8 @@ import           Data.Int (Int32)
 import           System.IO.Streams (InputStream)
 import qualified System.IO.Streams.Combinators as SC
 
--- | EventStore for events of type 'e' applied to aggregates of type 'i'.
+-- | EventStore for events of type 'e' applied to aggregates with
+-- identifiers of type 'i'.
 data EventStore i e = EventStore {
       -- | Store new events for an aggregate. May throw 'StoreError' exception
       -- if there's a problem storing the events. Guarantees atomicity, i.e.

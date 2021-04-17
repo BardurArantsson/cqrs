@@ -1,5 +1,6 @@
 --ignore-dir=dist
 --ignore-dir=bower_components
 --ignore-dir=vendor
+--ignore-dir=dist-newstyle
 --ignore-file=is:bundle.js
 --ignore-file=is:bundle.map.json

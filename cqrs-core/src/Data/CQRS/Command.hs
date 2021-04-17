@@ -36,7 +36,7 @@ import           Data.Maybe (fromJust)
 import qualified System.IO.Streams.Combinators as SC
 
 -- | Command monad transformer.
-newtype CommandT i a e m b = CommandT { unCommandT :: CommandM i a e m b }
+newtype CommandT i a e m b = CommandT { unCommandT :: ReaderT (CommandE i a e) m b }
     deriving (Functor, Applicative, Monad)
 
 instance MonadTrans (CommandT i a e) where
@@ -45,13 +45,11 @@ instance MonadTrans (CommandT i a e) where
 instance MonadIO m => MonadIO (CommandT i a e m) where
     liftIO m = CommandT $ liftIO m
 
--- | Command monad. This is just a reader to provide ambient access to the Repository.
-type CommandM i a e = ReaderT (Command i a e)
-
-newtype Command i a e = Command { commandRepository :: Repository i a e }
+-- | Environment for CommandT.
+newtype CommandE i a e = CommandE { commandRepository :: Repository i a e }
 
 -- | Unit of work monad transformer.
-newtype UnitOfWorkT a e m b = UnitOfWorkT { unUnitOfWorkT :: UnitOfWorkM a e m b }
+newtype UnitOfWorkT a e m b = UnitOfWorkT { unUnitOfWorkT :: StateT (UnitOfWorkE a e) m b }
   deriving (Functor, Applicative, Monad)
 
 instance MonadTrans (UnitOfWorkT a e) where
@@ -60,17 +58,15 @@ instance MonadTrans (UnitOfWorkT a e) where
 instance MonadIO m => MonadIO (UnitOfWorkT a e m) where
     liftIO m = UnitOfWorkT $ liftIO m
 
--- | Unit of work monad.
-type UnitOfWorkM a e = StateT (UnitOfWork a e)
-
-data UnitOfWork a e =
-   UnitOfWork { uowAggregate :: Aggregate a e
-              , uowClock :: Clock
-              }
+-- | Environment for UnitOfWorkT.
+data UnitOfWorkE a e =
+   UnitOfWorkE { uowAggregate :: Aggregate a e
+               , uowClock :: Clock
+               }
 
 -- | Run a command against a repository.
 runCommandT :: Repository i a e -> CommandT i a e m b -> m b
-runCommandT repository (CommandT command) = runReaderT command $ Command repository
+runCommandT repository (CommandT command) = runReaderT command $ CommandE repository
 
 -- | Run a command against a repository, ignoring the result.
 execCommandT :: (MonadIO m) => Repository i a e -> CommandT i a e m b -> m ()
@@ -130,7 +126,7 @@ createAggregate aggregateId unitOfWork = do
   (r, s) <- do
     aggregateAction <- getAggregateAction
     clock <- getClock
-    runStateT run $ UnitOfWork (A.emptyAggregate aggregateAction) clock
+    runStateT run $ UnitOfWorkE (A.emptyAggregate aggregateAction) clock
   -- Write out any changes.
   writeChanges aggregateId $ uowAggregate s
   -- Return the result of the computation
@@ -158,7 +154,7 @@ updateAggregate aggregateId unitOfWork = do
       Nothing ->
         return Nothing
       Just _ -> do
-        (r, s) <- runStateT run $ UnitOfWork aggregate clock
+        (r, s) <- runStateT run $ UnitOfWorkE aggregate clock
         writeChanges aggregateId $ uowAggregate s
         return $ Just r
   where
@@ -173,7 +169,7 @@ readAggregate :: (MonadIO m) => i -> CommandT i a e m (Maybe a)
 readAggregate = CommandT . fmap A.aggregateValue . getByIdFromEventStore
 
 -- Retrieve aggregate from event store.
-getByIdFromEventStore :: (MonadIO m) => i -> CommandM i a e m (Aggregate a e)
+getByIdFromEventStore :: (MonadIO m) => i -> ReaderT (CommandE i a e) m (Aggregate a e)
 getByIdFromEventStore aggregateId = do
   r <- fmap commandRepository ask
   let es = repositoryEventStore r

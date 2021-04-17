@@ -10,4 +10,4 @@ cabal sandbox init
 
 # Build everything as a single unit. This ensures that all the
 # dependencies are semi-consistent across the projects.
-cabal install --enable-tests ./cqrs-core ./cqrs-testkit ./cqrs-memory ./cqrs-postgresql ./cqrs-example
+cabal install --force-reinstalls --enable-tests ./cqrs-core ./cqrs-testkit ./cqrs-memory ./cqrs-postgresql ./cqrs-example

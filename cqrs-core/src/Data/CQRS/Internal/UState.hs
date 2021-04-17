@@ -8,7 +8,7 @@ module Data.CQRS.Internal.UState
   ) where
 
 import           Control.Monad.IO.Class (MonadIO(..))
-import           Control.Monad.IO.Unlift (MonadUnliftIO(..), liftIO)
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..), liftIO, wrappedWithRunInIO)
 import           Control.Monad.Trans.Class (MonadTrans(..))
 import           Control.Monad.Trans.Reader (ReaderT(..), runReaderT, ask)
 import           Data.Functor.Identity
@@ -26,9 +26,7 @@ instance MonadIO m => MonadIO (UStateT s m) where
   liftIO m = UStateT $ liftIO m
 
 instance MonadUnliftIO m => MonadUnliftIO (UStateT s m) where
-  withRunInIO f = UStateT $ ReaderT $ \r ->
-    withRunInIO $ \io ->
-      f $ io . flip (runReaderT . unUStateT) r
+  withRunInIO = wrappedWithRunInIO UStateT unUStateT
 
 -- | Run a computation with the given environment and return its
 -- output and the resulting environment.

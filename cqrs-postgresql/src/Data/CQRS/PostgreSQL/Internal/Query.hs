@@ -24,7 +24,7 @@ import           Database.PostgreSQL.Simple.Types (Query(..))
 import qualified Database.PostgreSQL.Simple as PS
 import           Database.PostgreSQL.Simple.Cursor (Cursor)
 import qualified Database.PostgreSQL.Simple.Cursor as PSC
-import           UnliftIO (MonadIO(..), MonadUnliftIO(..), UnliftIO(..), liftIO, bracket, withUnliftIO)
+import           UnliftIO (MonadIO(..), MonadUnliftIO(..), liftIO, bracket, wrappedWithRunInIO)
 import           UnliftIO.IORef (newIORef, readIORef, modifyIORef', writeIORef)
 import qualified UnliftIO.Streams as Streams
 import           UnliftIO.Streams.Internal (InputStream(..))
@@ -41,10 +41,8 @@ instance MonadIO m => MonadIO (QueryT m) where
   liftIO m = QueryT $ liftIO m
 
 instance MonadUnliftIO m => MonadUnliftIO (QueryT m) where
-  askUnliftIO =
-    QueryT $
-      withUnliftIO $ \u ->
-       return $ UnliftIO (unliftIO u . unQueryT)
+  withRunInIO =
+    wrappedWithRunInIO QueryT unQueryT
 
 -- | Run query on a given 'Connection'. Performs no transaction
 -- control.

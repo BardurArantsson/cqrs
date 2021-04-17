@@ -19,7 +19,7 @@ module Data.CQRS.Command
 import           Control.DeepSeq (NFData)
 import           Control.Monad (join, void)
 import           Control.Monad.IO.Class (MonadIO(..))
-import           Control.Monad.IO.Unlift (MonadUnliftIO(..), liftIO)
+import           Control.Monad.IO.Unlift (MonadUnliftIO(..), liftIO, wrappedWithRunInIO)
 import           Control.Monad.Trans.Class (MonadTrans(..), lift)
 import           Control.Monad.Trans.Reader (ReaderT(..), runReaderT, ask)
 import           Data.CQRS.Internal.Aggregate (Aggregate)
@@ -48,9 +48,7 @@ instance MonadIO m => MonadIO (CommandT i a e m) where
     liftIO m = CommandT $ liftIO m
 
 instance MonadUnliftIO m => MonadUnliftIO (CommandT i a e m) where
-  withRunInIO f = CommandT $ ReaderT $ \r ->
-    withRunInIO $ \io ->
-      f (io . flip (runReaderT . unCommandT) r)
+  withRunInIO = wrappedWithRunInIO CommandT unCommandT
 
 -- | Environment for CommandT.
 newtype CommandE i a e = CommandE { commandRepository :: Repository i a e }
@@ -66,8 +64,7 @@ instance MonadIO m => MonadIO (UnitOfWorkT a e m) where
     liftIO m = UnitOfWorkT $ liftIO m
 
 instance MonadUnliftIO m => MonadUnliftIO (UnitOfWorkT a e m) where
-  withRunInIO f = UnitOfWorkT $
-    withRunInIO $ \io -> f (io . unUnitOfWorkT)
+  withRunInIO = wrappedWithRunInIO UnitOfWorkT unUnitOfWorkT
 
 -- | Environment for UnitOfWorkT.
 data UnitOfWorkE a e =

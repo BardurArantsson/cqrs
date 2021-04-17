@@ -5,9 +5,9 @@ module Data.CQRS.Types.SnapshotStore
     , nullSnapshotStore
     ) where
 
-import Control.Applicative ((<$>))
-import Data.CQRS.Types.Snapshot (Snapshot(..))
-import Data.CQRS.Types.Iso
+import           Control.Applicative ((<$>))
+import           Data.CQRS.Types.Snapshot (Snapshot(..))
+import           Data.CQRS.Types.Iso
 
 -- | A snapshot store is used for storing snapshots.
 data SnapshotStore i a = SnapshotStore

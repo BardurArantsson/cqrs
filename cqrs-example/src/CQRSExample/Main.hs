@@ -14,7 +14,6 @@ import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.PersistedEvent (PersistedEvent'(..), shrink)
 import qualified Data.CQRS.Memory as M (newStorage, newStorageBackend)
 import qualified Data.CQRS.PostgreSQL as P (newStorageBackend, Schema(..))
-import           Data.CQRS.PostgreSQL.Migrations (migrate)
 import qualified Data.CQRS.Repository as R
 import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as Chunk
@@ -26,7 +25,7 @@ import           Data.CQRS.Types.StreamPosition (StreamPosition, infimum)
 import           Data.Either (fromRight)
 import qualified Data.List.NonEmpty as NEL
 import           Data.Maybe (fromMaybe)
-import           Data.Pool (createPool, withResource)
+import           Data.Pool (createPool)
 import           Data.Serialize (encode, decode)
 import qualified Database.PostgreSQL.Harness.Client as H
 import qualified Database.PostgreSQL.Simple as PS (connectPostgreSQL, close)
@@ -130,7 +129,6 @@ startServing backend = do
         let eventIso :: Iso Event ByteString = (encode, fromRight (error "Bad encoded event data") . decode)
         -- Create the event stream and event store
         let schema = P.DefaultSchema
-        withResource connectionPool $ flip migrate $ schema
         fmap (SB.transformI identifierIso .  SB.transformE eventIso) $ P.newStorageBackend connectionPool schema
       Memory -> do
         storage <- M.newStorage

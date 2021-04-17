@@ -6,12 +6,14 @@ import           Control.Monad (forM_)
 import           Data.CQRS.PostgreSQL ( Schema(..)
                                       , newEventStore
                                       , newEventStream
+                                      , newKVStore
                                       , newSnapshotStore
                                       )
 import           Data.CQRS.PostgreSQL.Migrations
 import           Data.CQRS.PostgreSQL.Internal.QuerySpec ( mkQuerySpec )
 import           Data.CQRS.Test.TestKit ( mkEventStoreSpec
                                         , mkEventStreamSpec
+                                        , mkKVStoreSpec
                                         , mkRepositorySpec
                                         , mkSnapshotStoreSpec
                                         , TestKitSettings(..)
@@ -60,6 +62,12 @@ main = do
                                  eventStore <- newEventStore c schema
                                  return (eventStream, eventStore)
                           }
+       mkKVStoreSpec $ testKitSettings {
+                           tksMakeContext = \c -> do
+                               withResource c (`migrateKVStore` schema)
+                               kvs <- newKVStore c schema
+                               return kvs
+                       }
        mkRepositorySpec $ testKitSettings {
                               tksMakeContext = \c -> do
                                 es <- newEventStore c schema

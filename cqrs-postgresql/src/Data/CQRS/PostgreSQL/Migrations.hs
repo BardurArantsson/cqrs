@@ -2,6 +2,7 @@
 module Data.CQRS.PostgreSQL.Migrations
     ( Schema(..) -- Re-export
     , migrate
+    , migrateKVStore
     ) where
 
 import qualified Database.Peregrin as P
@@ -45,3 +46,22 @@ migrate connection schema =
        \  \"data\" BYTEA, \
        \  \"version\" INTEGER \
        \)"
+
+-- | Apply all necessary migrations to use a key-value store.  It is
+-- __not__ recommended to use the same schema as the main CQRS
+-- functionality; doing so is not supported.
+migrateKVStore :: Connection -> Schema -> IO ()
+migrateKVStore connection schema =
+  P.migrate connection schema
+    [ ("5a189964-509f-4068-84e6-9302f8c53818", sqlCreateKvStoreTbl, QP $ Only kvStoreTable)
+    ]
+  where
+    ids = mkIdentifiers schema
+    kvStoreTable = tblKvStore ids
+
+    sqlCreateKvStoreTbl =
+      "CREATE TABLE ? ( \
+      \  \"key\" BYTEA PRIMARY KEY, \
+      \  \"value\" JSON \
+      \)"
+

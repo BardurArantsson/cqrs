@@ -16,6 +16,7 @@ Source-Repository head
 
 Library
   Build-Depends:       base >= 4.9 && < 5
+                     , aeson >= 1.4 && < 2
                      , bytestring >= 0.9.0.1
                      , base64-bytestring >= 1.0.0 && < 2
                      , containers >= 0.5 && < 1
@@ -35,6 +36,7 @@ Library
                        Data.CQRS.Test.Internal.AggregateAction
                        Data.CQRS.Test.Internal.EventStreamTest
                        Data.CQRS.Test.Internal.EventStoreTest
+                       Data.CQRS.Test.Internal.KVStoreTest
                        Data.CQRS.Test.Internal.RepositoryTest
                        Data.CQRS.Test.Internal.Scope
                        Data.CQRS.Test.Internal.SnapshotTest

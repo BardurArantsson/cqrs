@@ -16,6 +16,7 @@ Source-Repository head
 
 Library
   build-depends:      base >= 4.9 && < 5
+                    , aeson >= 1.4 && < 2
                     , bytestring >= 0.9.0.1
                     , cqrs-core >= 0.11.0 && < 0.12.0
                     , peregrin >= 0.2.0 && < 0.3
@@ -33,6 +34,7 @@ Library
                       Data.CQRS.PostgreSQL.Internal.EventStore
                       Data.CQRS.PostgreSQL.Internal.EventStream
                       Data.CQRS.PostgreSQL.Internal.Identifiers
+                      Data.CQRS.PostgreSQL.Internal.KVStore
                       Data.CQRS.PostgreSQL.Internal.Query
                       Data.CQRS.PostgreSQL.Internal.SnapshotStore
                       Data.CQRS.PostgreSQL.Internal.Transaction

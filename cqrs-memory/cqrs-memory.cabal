@@ -28,6 +28,7 @@ Library
   hs-source-dirs:      src
   Exposed-modules:     Data.CQRS.Memory.Internal.EventStore
                        Data.CQRS.Memory.Internal.EventStream
+                       Data.CQRS.Memory.Internal.KVStore
                        Data.CQRS.Memory.Internal.SnapshotStore
                        Data.CQRS.Memory.Internal.Storage
                        Data.CQRS.Memory

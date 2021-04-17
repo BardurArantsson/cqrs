@@ -3,6 +3,7 @@ module Main (main) where
 import           Data.CQRS.Memory
 import           Data.CQRS.Test.TestKit ( mkEventStoreSpec
                                         , mkEventStreamSpec
+                                        , mkKVStoreSpec
                                         , mkRepositorySpec
                                         , mkSnapshotStoreSpec
                                         , TestKitSettings(..)
@@ -29,6 +30,11 @@ main = do
                                eventStore <- newEventStore c
                                return (eventStream, eventStore)
                            }
+     mkKVStoreSpec $ testKitSettings {
+                         tksMakeContext = \_ -> do
+                             kvs <- newKVStore
+                             return kvs
+                     }
      mkRepositorySpec $ testKitSettings {
                             tksMakeContext = \c -> do
                               es <- newEventStore c

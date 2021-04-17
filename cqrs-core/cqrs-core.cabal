@@ -28,6 +28,7 @@ Library
   ghc-options:         -Wall
   hs-source-dirs:      src
   Exposed-modules:     Data.CQRS.Command
+                       Data.CQRS.KVStore
                        Data.CQRS.Repository
                        Data.CQRS.SnapshotStore
                        Data.CQRS.Internal.Aggregate
@@ -41,6 +42,8 @@ Library
                        Data.CQRS.Types.EventStore
                        Data.CQRS.Types.EventStream
                        Data.CQRS.Types.Iso
+                       Data.CQRS.Types.KVStore
+                       Data.CQRS.Types.KVStoreError
                        Data.CQRS.Types.PersistedEvent
                        Data.CQRS.Types.Snapshot
                        Data.CQRS.Types.SnapshotStore

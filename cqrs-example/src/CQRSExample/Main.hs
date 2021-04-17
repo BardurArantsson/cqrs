@@ -12,18 +12,16 @@ import           Control.Monad.IO.Class (MonadIO(..))
 import           Control.Monad.IO.Unlift (MonadUnliftIO)
 import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.PersistedEvent (PersistedEvent'(..), shrink)
-import qualified Data.CQRS.Memory as M (newEventStore, newEventStream, newStorage)
-import qualified Data.CQRS.PostgreSQL as P (newEventStore, newEventStream, Schema(..))
+import qualified Data.CQRS.Memory as M (newEventStream, newStorage, newStorageBackend)
+import qualified Data.CQRS.PostgreSQL as P (newEventStream, newStorageBackend, Schema(..))
 import           Data.CQRS.PostgreSQL.Migrations (migrate)
 import qualified Data.CQRS.Repository as R
-import           Data.CQRS.SnapshotStore (nullSnapshotStore)
 import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as Chunk
-import qualified Data.CQRS.Types.EventStore as EventStore
 import           Data.CQRS.Types.EventStream (EventStream(..))
 import qualified Data.CQRS.Types.EventStream as EventStream
 import           Data.CQRS.Types.Iso (Iso)
-import           Data.CQRS.Types.StorageBackend (newStorageBackend)
+import qualified Data.CQRS.Types.StorageBackend as SB
 import           Data.CQRS.Types.StreamPosition (StreamPosition, infimum)
 import           Data.Either (fromRight)
 import qualified Data.List.NonEmpty as NEL
@@ -134,17 +132,20 @@ startServing backend = do
         let schema = P.DefaultSchema
         withResource connectionPool $ flip migrate $ schema
         eventStream <- fmap (EventStream.transform identifierIso eventIso) (P.newEventStream connectionPool schema)
-        eventStore <- fmap (EventStore.transform identifierIso eventIso) (P.newEventStore connectionPool schema)
-        return (newStorageBackend eventStore nullSnapshotStore, eventStream)
+        storageBackend <- fmap (SB.transformI identifierIso .  SB.transformE eventIso) $ P.newStorageBackend connectionPool schema
+        return (storageBackend, eventStream)
       Memory -> do
         storage <- M.newStorage
-        eventStore <- M.newEventStore storage
         eventStream <- M.newEventStream storage
-        return (newStorageBackend eventStore nullSnapshotStore, eventStream)
+        storageBackend <- M.newStorageBackend storage
+        return (storageBackend, eventStream)
+
+  -- We do not care about snapshots
+  let storageBackend' = SB.disableSnapshots storageBackend
 
   -- Create the resository
   let repositorySettings = R.setSnapshotFrequency 10 R.defaultSettings
-  let repository = R.newRepository repositorySettings aggregateAction storageBackend (liftIO . publishEvents)
+  let repository = R.newRepository repositorySettings aggregateAction storageBackend' (liftIO . publishEvents)
 
   -- Start sourcing events.
   void $ forkIO $

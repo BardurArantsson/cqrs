@@ -26,6 +26,7 @@ library:
     - Data.CQRS.Memory.Internal.KVStore
     - Data.CQRS.Memory.Internal.SnapshotStore
     - Data.CQRS.Memory.Internal.Storage
+    - Data.CQRS.Memory.Internal.StorageBackend
     - Data.CQRS.Memory
   source-dirs: src
 

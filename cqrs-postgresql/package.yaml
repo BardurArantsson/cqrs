@@ -31,6 +31,7 @@ library:
     - Data.CQRS.PostgreSQL.Internal.KVStore
     - Data.CQRS.PostgreSQL.Internal.Query
     - Data.CQRS.PostgreSQL.Internal.SnapshotStore
+    - Data.CQRS.PostgreSQL.Internal.StorageBackend
     - Data.CQRS.PostgreSQL.Internal.Transaction
     - Data.CQRS.PostgreSQL.Migrations
   source-dirs: src

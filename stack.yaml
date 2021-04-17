@@ -8,8 +8,7 @@ packages:
   - cqrs-testkit
   - cqrs-view
 extra-deps:
-  # Not in lts-13.7 yet
   - peregrin-0.3.0
   - pg-harness-client-0.6.0
   - unliftio-pool-0.2.1.0
-  - unliftio-streams-0.1.0.0
+  - unliftio-streams-0.1.1.0

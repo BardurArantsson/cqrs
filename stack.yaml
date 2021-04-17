@@ -1,4 +1,4 @@
-resolver: lts-13.25
+resolver: lts-14.1
 packages:
   - foleni
   - cqrs-core
@@ -7,8 +7,3 @@ packages:
   - cqrs-postgresql
   - cqrs-testkit
   - cqrs-view
-extra-deps:
-  - peregrin-0.3.0
-  - pg-harness-client-0.6.0
-  - unliftio-pool-0.2.1.0
-  - unliftio-streams-0.1.1.0

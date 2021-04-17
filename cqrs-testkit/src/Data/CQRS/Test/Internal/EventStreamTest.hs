@@ -132,9 +132,9 @@ mkEventStreamSpec testKitSettings =
     runScope = mkRunScope testKitSettings $ \a -> do
       -- Repository setup
       clock <- autoIncrementingClock 1000 1
-      (archiveStore, eventStore) <- tksMakeContext testKitSettings a
+      (eventStream, eventStore) <- tksMakeContext testKitSettings a
       -- Build the ambient state.
-      return $ Scope archiveStore eventStore clock
+      return $ Scope eventStream eventStore clock
 
 
 -- Publish a sequence of events.

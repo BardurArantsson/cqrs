@@ -49,3 +49,19 @@ Library
                        Data.CQRS.Types.SnapshotStore
                        Data.CQRS.Types.StoreError
                        Data.CQRS.Types.StreamPosition
+
+Test-Suite tests
+  Type:                exitcode-stdio-1.0
+  Hs-source-dirs:      src-test
+  Main-is:             Main.hs
+  Build-depends:       base == 4.*
+                     -- Self-dependency
+                     , cqrs-core >= 0.11.0 && < 0.12.0
+                     -- Test framework
+                     , genvalidity >= 0.7 && < 0.9
+                     , genvalidity-hspec >= 0.6 && < 0.9
+                     , hspec >= 2.2.0 && < 3.0
+                     , validity >= 0.9 && < 1
+  Default-language:    Haskell2010
+  Ghc-options:         -Wall
+  other-modules:     Data.CQRS.Types.StreamPositionTest

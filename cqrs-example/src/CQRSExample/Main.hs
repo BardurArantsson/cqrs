@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main ( main ) where
 
 import           Control.Concurrent (forkIO, threadDelay)
@@ -6,17 +8,29 @@ import           Control.Concurrent.STM (atomically, TChan)
 import qualified Control.Concurrent.STM.TChan as C
 import           Control.Concurrent.STM.TVar (TVar, newTVarIO)
 import           Control.Monad (void, forever, when, forM_)
+import           Data.ByteString (ByteString)
 import           Data.CQRS.Internal.PersistedEvent (PersistedEvent'(..), shrink)
-import           Data.CQRS.Memory (newEventStore, newEventStream, newStorage)
-import           Data.CQRS.SnapshotStore (nullSnapshotStore)
+import qualified Data.CQRS.Memory as M (newEventStore, newEventStream, newStorage)
+import qualified Data.CQRS.PostgreSQL as P (newEventStore, newEventStream, Schema(..))
+import           Data.CQRS.PostgreSQL.Migrations (migrate)
 import qualified Data.CQRS.Repository as R
+import           Data.CQRS.SnapshotStore (nullSnapshotStore)
 import           Data.CQRS.Types.Chunk (Chunk)
 import qualified Data.CQRS.Types.Chunk as Chunk
+import qualified Data.CQRS.Types.EventStore as EventStore
 import           Data.CQRS.Types.EventStream (EventStream(..))
+import qualified Data.CQRS.Types.EventStream as EventStream
+import           Data.CQRS.Types.Iso (Iso)
 import           Data.CQRS.Types.StreamPosition (StreamPosition, infimum)
+import           Data.Either (fromRight)
 import qualified Data.List.NonEmpty as NEL
 import           Data.Maybe (fromMaybe)
+import           Data.Pool (createPool, withResource)
+import           Data.Serialize (encode, decode)
+import qualified Database.PostgreSQL.Harness.Client as H
+import qualified Database.PostgreSQL.Simple as PS (connectPostgreSQL, close)
 import           Network.Wai.EventSource (ServerEvent(..))
+import           System.Environment (getArgs)
 import qualified System.IO.Streams as Streams
 import           System.IO.Streams (InputStream)
 import           Web.Scotty (scotty)
@@ -82,9 +96,13 @@ eventSourcingThread qs eventStream serverEvents publishedEvents =
       runQuery qs $ reactToEvents aggregateId $ NEL.toList evs
 
 
+-- Backend
+data Backend = PostgreSQL
+             | Memory
+
 -- Start serving the application.
-startServing :: IO ()
-startServing = do
+startServing :: Backend -> IO ()
+startServing backend = do
   qState <- newTVarIO newQueryState
 
   -- Queue of json events to send to browser.
@@ -96,10 +114,30 @@ startServing = do
   -- Publish events
   let publishEvents = atomically . C.writeTChan publishedEvents
 
-  -- Create memory CQRS backing storage
-  storage <- newStorage
-  eventStore <- newEventStore storage
-  eventStream <- newEventStream storage
+  -- Create backend
+  (eventStore, eventStream) <-
+    case backend of
+      PostgreSQL -> do
+        -- Use a pg-harness instance.
+        let url = "http://127.0.0.1:8900"
+        -- Connection pool creation function. We use a fresh temporary
+        -- database for every connection pool.
+        connectionString <- H.toConnectionString <$> H.createTemporaryDatabase url
+        connectionPool <- createPool (PS.connectPostgreSQL connectionString) PS.close 1 1 5
+        -- Use serialization to/from JSON since this event store can only store binary data.
+        let identifierIso :: Iso TaskId ByteString = (encode, fromRight (error "Bad encoded identifier data") . decode)
+        let eventIso :: Iso Event ByteString = (encode, fromRight (error "Bad encoded event data") . decode)
+        -- Create the event stream and event store
+        let schema = P.DefaultSchema
+        withResource connectionPool $ flip migrate $ schema
+        eventStream <- fmap (EventStream.transform identifierIso eventIso) (P.newEventStream connectionPool schema)
+        eventStore <- fmap (EventStore.transform identifierIso eventIso) (P.newEventStore connectionPool schema)
+        return (eventStore, eventStream)
+      Memory -> do
+        storage <- M.newStorage
+        eventStore <- M.newEventStore storage
+        eventStream <- M.newEventStream storage
+        return (eventStore, eventStream)
 
   -- Create the resository
   let repositorySettings = R.setSnapshotFrequency 10 R.defaultSettings
@@ -116,8 +154,17 @@ startServing = do
 
 main :: IO ()
 main = do
-  putStrLn "Starting..."
-  startServing
-  putStrLn "Press <Enter> to quit"
-  _ <- getLine
-  return ()
+  -- Run
+  let run backend = do
+        putStrLn "Starting..."
+        startServing backend
+        putStrLn "Press <Enter> to quit"
+        void $ getLine
+  -- Process command line args
+  getArgs >>= \case
+    ["postgresql"] ->
+      run PostgreSQL
+    ["memory"] ->
+      run Memory
+    _ ->
+      putStrLn "Usage: cqrs-example [postgresql|memory]"

@@ -8,6 +8,7 @@ import           Control.DeepSeq (NFData(..))
 import           Control.Monad (replicateM)
 import           Control.Monad.IO.Class (MonadIO(liftIO))
 import           Data.Aeson.Types (ToJSON(..), Value(String))
+import           Data.Serialize (Serialize(..))
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -24,6 +25,13 @@ instance NFData TaskId
 -- Conversion to JSON.
 instance ToJSON TaskId where
     toJSON (TaskId tid) = String tid
+
+-- Serialization support.
+instance Serialize TaskId where
+    put (TaskId t) = do
+      put $ T.unpack t
+    get = do
+      fmap (TaskId . T.pack) get
 
 -- Create a fresh task ID.
 freshTaskId :: MonadIO m => m TaskId
